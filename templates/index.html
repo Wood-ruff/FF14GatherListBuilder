@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FF14 Gather List Builder</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Gather List Builder</h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Lists</h2>
+      <div class="row">
+        <form method="get" action="/">
+          <select name="list">
+            {% for name in list_names %}
+            <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">Open</button>
+        </form>
+        <form method="get" action="/">
+          <input name="list" placeholder="New list name">
+          <button type="submit" class="secondary">Create</button>
+        </form>
+      </div>
+    </section>
+
+    {% if selected %}
+    <section class="card">
+      <h2>{{ selected }}</h2>
+
+      <form method="post" action="/add" class="add-form">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input name="item" placeholder="Item name" required>
+        <input name="amount" type="number" min="1" placeholder="Amount" required>
+        <button type="submit">Add</button>
+      </form>
+
+      {% if items %}
+      <table>
+        <thead>
+          <tr><th>Item</th><th class="num">Amount</th><th class="num">Game ID</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td><input form="edit-{{ item.id }}" name="item" value="{{ item.name }}" required></td>
+            <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
+            <td class="num muted">{{ item.game_id if item.game_id else "?" }}</td>
+            <td class="actions">
+              <button form="edit-{{ item.id }}" class="secondary">Save</button>
+              <button form="delete-{{ item.id }}" class="danger">Delete</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% for item in items %}
+      <form id="edit-{{ item.id }}" method="post" action="/update">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input type="hidden" name="id" value="{{ item.id }}">
+      </form>
+      <form id="delete-{{ item.id }}" method="post" action="/delete">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input type="hidden" name="id" value="{{ item.id }}">
+      </form>
+      {% endfor %}
+      {% else %}
+      <p class="muted">This list is empty — add your first item above.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

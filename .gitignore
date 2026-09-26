@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude Code local instructions (not tracked)
+CLAUDE.md
+
+# Local list data
+data/
