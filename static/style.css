@@ -23,6 +23,15 @@ body {
 header {
   padding: 32px 16px 8px;
   text-align: center;
+  position: relative;
+}
+
+.top-right {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 16px;
 }
 
 h1 {
@@ -60,6 +69,12 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
 form {
@@ -192,4 +207,21 @@ button.danger:hover {
 
 .muted {
   color: var(--text-muted);
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+a {
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }

@@ -9,6 +9,21 @@
 <body>
   <header>
     <h1>Gather List Builder</h1>
+    <div class="top-right">
+      <form method="post" action="/language">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <select name="language">
+          {% for lang in languages %}
+          <option value="{{ lang }}" {% if lang == language %}selected{% endif %}>{{ lang | upper }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="secondary">Set</button>
+      </form>
+      <form method="post" action="/clear-cache" onsubmit="return confirm('Clear all cached item data and icons?')">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <button type="submit" class="danger">Clear caches</button>
+      </form>
+    </div>
   </header>
 
   <main>
@@ -32,13 +47,26 @@
 
     {% if selected %}
     <section class="card">
-      <h2>{{ selected }}</h2>
+      <div class="card-head">
+        <h2>{{ selected }}</h2>
+        <form method="post" action="/delete-list">
+          <input type="hidden" name="list" value="{{ selected }}">
+          <button type="submit" class="danger">Delete list</button>
+        </form>
+      </div>
 
       <form method="post" action="/add" class="add-form">
         <input type="hidden" name="list" value="{{ selected }}">
         <input name="item" placeholder="Item name" required>
         <input name="amount" type="number" min="1" placeholder="Amount" required>
         <button type="submit">Add</button>
+      </form>
+
+      <form method="post" action="/craft" class="add-form">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input name="item" placeholder="Craftable item — adds its base materials" required>
+        <input name="amount" type="number" min="1" placeholder="Amount" required>
+        <button type="submit" class="secondary">Add materials</button>
       </form>
 
       {% if items %}
@@ -49,9 +77,18 @@
         <tbody>
           {% for item in items %}
           <tr>
-            <td><input form="edit-{{ item.id }}" name="item" value="{{ item.name }}" required></td>
+            <td>
+              {% if item.game_id %}<img class="icon" src="/icons/{{ item.game_id }}" alt="">{% endif %}
+              {{ item.name }}
+            </td>
             <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
-            <td class="num muted">{{ item.game_id if item.game_id else "?" }}</td>
+            <td class="num">
+              {% if item.game_id %}
+              <a href="https://www.garlandtools.org/db/#item/{{ item.game_id }}" target="_blank" rel="noopener">{{ item.game_id }}</a>
+              {% else %}
+              <span class="muted">?</span>
+              {% endif %}
+            </td>
             <td class="actions">
               <button form="edit-{{ item.id }}" class="secondary">Save</button>
               <button form="delete-{{ item.id }}" class="danger">Delete</button>

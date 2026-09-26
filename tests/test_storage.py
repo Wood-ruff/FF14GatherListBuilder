@@ -1,4 +1,10 @@
+import settings
 import storage
+
+
+def test_lists_live_in_their_own_folder():
+    assert storage.DATA_DIR.name == "lists"
+    assert settings.SETTINGS_FILE.parent != storage.DATA_DIR
 
 
 def test_save_and_load_round_trip(tmp_path, monkeypatch):
@@ -13,6 +19,18 @@ def test_list_names_sorted(tmp_path, monkeypatch):
     storage.save_items("Beta", [])
     storage.save_items("Alpha", [])
     assert storage.get_list_names() == ["Alpha", "Beta"]
+
+
+def test_delete_list(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    storage.save_items("Ores", [{"id": 1, "name": "Iron Ore", "amount": 1}])
+    storage.delete_list("Ores")
+    assert storage.get_list_names() == []
+
+
+def test_delete_missing_list_is_harmless(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    storage.delete_list("Nope")
 
 
 def test_load_missing_list_returns_empty(tmp_path, monkeypatch):

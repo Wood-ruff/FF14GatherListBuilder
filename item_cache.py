@@ -1,14 +1,16 @@
 import json
+import shutil
 from datetime import date, timedelta
 from pathlib import Path
 
-CACHE_FILE = Path(__file__).parent / "data" / "item_cache.json"
+CACHE_FILE = Path(__file__).parent / "data" / "cache" / "item_cache.json"
+ICONS_DIR = Path(__file__).parent / "data" / "cache" / "icons"
 MAX_AGE_DAYS = 60
 
 
-def get_fresh_result(item_name):
-    """Return the cached result for an item if it is fresh enough, or None."""
-    entry = load_cache().get(item_name.lower())
+def get_fresh_result(name, kind="item"):
+    """Return the cached result for a name and kind if it is fresh enough, or None."""
+    entry = load_cache().get(cache_key(name, kind))
     if not entry:
         return None
     if is_expired(entry["fetchdate"]):
@@ -16,22 +18,47 @@ def get_fresh_result(item_name):
     return entry["result"]
 
 
-def store_result(item_name, result):
-    """Save one item result with today's date in the cache file."""
+def store_result(name, result, kind="item"):
+    """Save one result of the given kind with today's date in the cache file."""
     cache = load_cache()
-    cache[item_name.lower()] = {
+    cache[cache_key(name, kind)] = {
         "fetchdate": date.today().isoformat(),
+        "type": kind,
         "result": result,
     }
-    CACHE_FILE.parent.mkdir(exist_ok=True)
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(CACHE_FILE, "w", encoding="utf-8") as file:
         json.dump(cache, file, indent=2)
+
+
+def cache_key(name, kind):
+    """Build the cache key for a name and kind."""
+    return f"{kind}:{name.lower()}"
 
 
 def is_expired(fetchdate):
     """Check whether a fetch date is older than the maximum cache age."""
     oldest_allowed = date.today() - timedelta(days=MAX_AGE_DAYS)
     return date.fromisoformat(fetchdate) < oldest_allowed
+
+
+def has_icon(game_id):
+    """Check whether an icon for the game id is cached."""
+    return (ICONS_DIR / f"{game_id}.png").exists()
+
+
+def store_icon(game_id, png_bytes):
+    """Save one icon image in the icon cache."""
+    ICONS_DIR.mkdir(parents=True, exist_ok=True)
+    (ICONS_DIR / f"{game_id}.png").write_bytes(png_bytes)
+
+
+def clear():
+    """Delete the cache file and all cached icons."""
+    if CACHE_FILE.exists():
+        CACHE_FILE.unlink()
+    if ICONS_DIR.exists():
+        shutil.rmtree(ICONS_DIR)
 
 
 def load_cache():
