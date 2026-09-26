@@ -5,6 +5,28 @@ A small local web app for building FFXIV gathering lists. It looks up items via
 spawn timers for timed nodes, and helps you farm collectables — with as few API calls as
 possible thanks to aggressive local caching.
 
+## Features at a glance
+
+- **Gathering lists** — create as many as you like, add items with live name suggestions,
+  amounts merge automatically, everything is stored as plain JSON on your machine.
+- **Recipe resolution** — craftable items get a "+ Materials" button that adds all base
+  materials (nested recipes included), with a green marker showing it's been done.
+- **Live node timers** — timed items count down to their next spawn window in real seconds,
+  with zone, in-game coordinates and the nearest aetheryte one click away.
+- **Alarms** — a sound (pick one, or drop your own into `static/alarms/`) when a node on your
+  list comes up, working even in background tabs; mutable per item, silent for done items.
+- **Progress tracking** — done-checkboxes, item pinning that keeps rows visible while
+  scrolling, and automatic grouping: craftables on top, materials middle, crystals bottom.
+- **Collectables browsers** — two extra tabs listing every gatherable and craftable
+  collectable with job, level, scrip rewards, node position and timers; filter by name, job,
+  level, scrips; one click adds them (with materials) to your list, and gatherables can be
+  alarm-marked individually.
+- **Sharing** — export a list as a JSON file, import someone else's; all game data is
+  re-fetched locally, in your language.
+- **Languages** — EN/DE/FR/JA game data with per-item re-localization when you switch, and a
+  translatable interface (EN and DE included, template for more in `translations/`).
+- **Your look** — random background images per tab from `static/backgrounds/`.
+
 ## Getting it running
 
 1. **Install Python 3.14** (any 3.12+ works) from [python.org](https://www.python.org/downloads/).
@@ -38,10 +60,13 @@ possible thanks to aggressive local caching.
   bottom**, with divider lines between the groups.
 - **Tick the socket** in front of an item to mark it as done — it lights up and the row is
   struck through. Progress is saved with the list.
+- **Pin rows** with the thin strip on the row's left edge — pinned items stay visible at the
+  top while you scroll. Works on the collectables tabs too.
 - Adding the same item again sums the amounts. Amounts are editable in place (Save), items can be
   deleted individually, and the whole list can be emptied or deleted.
-- **Share lists**: Export downloads the selected list as a JSON file; Import (next to the list
-  picker) adds a shared file as a new list and re-fetches all its game data in the background.
+- **Share lists**: Export downloads the selected list as a JSON file; the Import button in the
+  bottom-right corner opens a small popup to add a shared file as a new list — its game data is
+  re-fetched in the background, in your language.
 - **Click an item name** to copy it to your clipboard — paste it into the in-game chat and press
   Tab to turn it into a real, clickable item link.
 - The **Game ID** column links to the item on Garland Tools.
@@ -53,16 +78,23 @@ possible thanks to aggressive local caching.
 - Turn on the **alarm** (top left) to hear a sound whenever a node on your list comes up — it
   works even when the browser tab is in the background. Pick a sound from the dropdown, test it
   with the Test button, or drop your own `.mp3`/`.wav`/`.ogg` into `static/alarms/`.
+- The small red socket next to a timer **mutes that item's alarm**; done items are silent
+  automatically. Crystals never show timers — they're gatherable in enough other ways.
 
 ### Gatherable Collectables
 
 A browsable table of all gathering collectables with job, level, stars, scrip rewards, spawn
-timer, and node position (zone links to the wiki). Filter by job and level, sort by clicking the
-column headers, and add items to your selected list with one click.
+timer, and node position (zone and aetheryte link to the wiki). Filter by name, job, level and
+scrips — filters apply live — and sort by clicking the column headers. One click adds an item to
+your selected list. The gold socket in front of timed items **alarm-marks** them: with the
+"Marked alarms" switch (top right of the panel) on, those nodes sound the alarm straight from
+this tab, and the row of filters includes a view showing only your alarm-marked items.
 
 ### Craftable Collectables
 
-The same for crafter collectables: job (with icon), recipe level, and scrip rewards. The
+The same for crafter collectables: job (with icon), recipe level, and scrip rewards, with the
+same live filters (by default only items with a current scrip reward are shown — legacy
+collectables are one dropdown away). The
 **"Add + materials"** button puts the collectable itself *and* all its base materials on your
 list, so you always know what you meant to craft. Adding runs in the background — you can keep
 browsing or switch tabs, and the list page refreshes itself when everything has arrived. Job
@@ -71,7 +103,8 @@ display names and icons can be adjusted in `job_names.json`.
 ### Language
 
 The dropdown in the top right switches both the interface and the game data (item names,
-suggestions, zones) between EN, DE, FR and JA. Interface translations live in `translations/`
+suggestions, zones) between EN, DE, FR and JA. The open list is translated immediately; other
+lists follow when you open them, item by item from cache. Interface translations live in `translations/`
 as simple JSON files (EN and DE are included). To contribute a new one, copy
 `translations/_template.json` to `<code>.json` and fill in the `"translation"` values — see
 `translations/README.md`. Untranslated entries fall back to English.
