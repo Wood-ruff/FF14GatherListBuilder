@@ -40,6 +40,8 @@ possible thanks to aggressive local caching.
   struck through. Progress is saved with the list.
 - Adding the same item again sums the amounts. Amounts are editable in place (Save), items can be
   deleted individually, and the whole list can be emptied or deleted.
+- **Share lists**: Export downloads the selected list as a JSON file; Import (next to the list
+  picker) adds a shared file as a new list and re-fetches all its game data in the background.
 - **Click an item name** to copy it to your clipboard — paste it into the in-game chat and press
   Tab to turn it into a real, clickable item link.
 - The **Game ID** column links to the item on Garland Tools.

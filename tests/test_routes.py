@@ -207,6 +207,47 @@ def test_icon_route_missing_icon_is_404(client, tmp_path, monkeypatch):
     assert client.get("/icons/999").status_code == 404
 
 
+def test_export_downloads_the_list_file(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    response = client.get("/export?list=Demo")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["Content-Disposition"]
+    assert b"Iron Ore" in response.data
+
+
+def test_export_unknown_list_redirects(client):
+    assert client.get("/export?list=Nope").status_code == 302
+
+
+def test_import_creates_the_list(client, monkeypatch):
+    import io
+    import json as jsonlib
+
+    monkeypatch.setattr("routes.run_in_background", lambda task: task())
+    payload = jsonlib.dumps([{"name": "Iron Ore", "amount": 7}]).encode("utf-8")
+    response = client.post(
+        "/import",
+        data={"file": (io.BytesIO(payload), "Friends List.json")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 302
+    page = client.get("/?list=Friends List").get_data(as_text=True)
+    assert "Iron Ore" in page
+
+
+def test_import_rejects_broken_files(client):
+    import io
+
+    response = client.post(
+        "/import",
+        data={"file": (io.BytesIO(b"not json"), "broken.json")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 302
+    page = client.get("/").get_data(as_text=True)
+    assert "broken" not in page
+
+
 def test_create_list_makes_an_empty_list(client):
     response = client.post("/create-list", data={"list": "gather items", "next": "/"})
     assert response.status_code == 302

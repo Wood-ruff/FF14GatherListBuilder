@@ -55,6 +55,17 @@
 
   <div id="toast" class="toast"></div>
 
+  <div class="import-corner">
+    <div id="import-panel" class="import-panel" hidden>
+      <form method="post" action="/import" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".json,application/json" required class="file-input">
+        <button type="submit" class="secondary">{{ t("import") }}</button>
+        <button type="button" id="import-close" class="danger">{{ t("modal_close") }}</button>
+      </form>
+    </div>
+    <button type="button" id="import-open" class="secondary">{{ t("import") }}</button>
+  </div>
+
   <div id="modal" class="modal" hidden>
     <div class="modal-box">
       <h3 id="modal-title"></h3>
@@ -72,6 +83,7 @@
   <script src="{{ url_for('static', filename='ajax-add.js') }}"></script>
   <script src="{{ url_for('static', filename='timer.js') }}"></script>
   <script src="{{ url_for('static', filename='filters.js') }}"></script>
+  <script src="{{ url_for('static', filename='import.js') }}"></script>
   {% block scripts %}{% endblock %}
   <script src="{{ url_for('static', filename='pending.js') }}"></script>
 </body>

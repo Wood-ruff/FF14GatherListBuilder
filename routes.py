@@ -1,4 +1,6 @@
+import json
 import threading
+from pathlib import Path
 
 from flask import Blueprint, jsonify, redirect, render_template, request, send_from_directory, url_for
 
@@ -289,6 +291,33 @@ def set_language():
     """Change the game data language, then show the current list again."""
     lists.set_language(request.form.get("language", ""))
     return redirect(url_for("routes.show_list", list=request.form.get("list", "")))
+
+
+@routes.get("/export")
+def export_list():
+    """Download the selected list as its JSON file."""
+    list_name = request.args.get("list", "").strip()
+    if list_name not in lists.get_list_names():
+        return redirect(url_for("routes.show_list"))
+    return send_from_directory(lists.lists_folder(), f"{list_name}.json", as_attachment=True)
+
+
+@routes.post("/import")
+def import_list():
+    """Import an uploaded list file, then refresh its game data in the background."""
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return redirect(url_for("routes.show_list"))
+    try:
+        items = json.loads(file.read(2_000_000).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return redirect(url_for("routes.show_list"))
+
+    name = lists.import_list(Path(file.filename).stem, items)
+    if name is None:
+        return redirect(url_for("routes.show_list"))
+    run_in_background(lambda: lists.refresh_list_data(name))
+    return redirect(url_for("routes.show_list", list=name))
 
 
 @routes.post("/create-list")

@@ -15,6 +15,8 @@
   "open": "Öffnen",
   "new_list_placeholder": "Name der neuen Liste",
   "create": "Erstellen",
+  "export": "Exportieren",
+  "import": "Importieren",
   "empty_list_button": "Liste leeren",
   "empty_list_confirm": "Alle Einträge aus dieser Liste entfernen?",
   "delete_list": "Liste löschen",

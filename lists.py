@@ -220,6 +220,81 @@ def remove_list(list_name):
     storage.delete_list(list_name)
 
 
+MAX_IMPORT_ITEMS = 500
+MAX_IMPORT_AMOUNT = 999999
+
+
+def lists_folder():
+    """Return the folder where the list files live."""
+    return storage.DATA_DIR
+
+
+def import_list(list_name, items):
+    """Create an imported list under a free name and return that name, or None."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name) or not isinstance(items, list):
+        return None
+    cleaned = []
+    for item in items[:MAX_IMPORT_ITEMS]:
+        if valid_import_item(item):
+            cleaned.append(imported_item(len(cleaned) + 1, item))
+    name = free_list_name(list_name)
+    storage.save_items(name, cleaned)
+    return name
+
+
+def free_list_name(list_name):
+    """Return the list name itself or a numbered variant if it is taken."""
+    names = storage.get_list_names()
+    if list_name not in names:
+        return list_name
+    counter = 2
+    while f"{list_name} {counter}" in names:
+        counter += 1
+    return f"{list_name} {counter}"
+
+
+def valid_import_item(item):
+    """Check whether an imported entry has a usable name and amount."""
+    if not isinstance(item, dict):
+        return False
+    name = item.get("name")
+    amount = item.get("amount")
+    return isinstance(name, str) and bool(name.strip()) and isinstance(amount, int) and amount > 0
+
+
+def imported_item(item_id, item):
+    """Keep only the known fields of an imported item, with safe defaults."""
+    game_id = item.get("game_id")
+    return {
+        "id": item_id,
+        "name": normalize_spaces(item["name"])[:100],
+        "amount": min(item["amount"], MAX_IMPORT_AMOUNT),
+        "game_id": game_id if isinstance(game_id, int) else None,
+        "gathering": None,
+        "craftable": bool(item.get("craftable", False)),
+        "done": bool(item.get("done", False)),
+        "muted": bool(item.get("muted", False)),
+        "materials_added": bool(item.get("materials_added", False)),
+    }
+
+
+def refresh_list_data(list_name):
+    """Re-fetch the game data of every item in a list, keeping the user's settings."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    items = storage.load_items(list_name)
+    for item in items:
+        game_item = xivapi.fetch_item(item["name"])
+        if game_item:
+            item["name"] = game_item["fields"]["Name"]
+            item["game_id"] = game_item["row_id"]
+            item["gathering"] = xivapi.fetch_gathering(item["game_id"])
+            item["craftable"] = xivapi.fetch_recipe(item["name"]) is not None
+    storage.save_items(list_name, items)
+
+
 def clear_caches():
     """Clear all cached api data."""
     xivapi.clear_cache()

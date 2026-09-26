@@ -315,6 +315,43 @@ def test_add_craft_without_recipe_adds_item_once(tmp_path, monkeypatch):
     assert names == {"Iron Ore": 5}
 
 
+def test_import_list_sanitizes_and_keeps_settings(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    raw = [
+        {"name": "Iron Ore", "amount": 5, "done": True, "muted": 1, "evil": "field", "game_id": "x"},
+        {"name": "", "amount": 5},
+        {"amount": 5},
+        "junk",
+        {"name": "Bay Leaf", "amount": -2},
+    ]
+    name = lists.import_list("Shared", raw)
+    assert name == "Shared"
+    items = lists.get_items("Shared")
+    assert len(items) == 1
+    assert items[0]["name"] == "Iron Ore"
+    assert items[0]["done"] is True
+    assert items[0]["muted"] is True
+    assert items[0]["game_id"] is None
+    assert "evil" not in items[0]
+
+
+def test_import_list_finds_a_free_name(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.create_list("Shared")
+    name = lists.import_list("Shared", [{"name": "Iron Ore", "amount": 1}])
+    assert name == "Shared 2"
+
+
+def test_refresh_list_data_fills_game_data(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.import_list("Shared", [{"name": "iron ore", "amount": 5, "done": True}])
+    lists.refresh_list_data("Shared")
+    item = lists.get_items("Shared")[0]
+    assert item["name"] == "Iron Ore"
+    assert item["game_id"] == 5111
+    assert item["done"] is True
+
+
 def test_alarm_sounds_list_built_in_first_and_custom_last():
     sounds = lists.alarm_sounds()
     assert sounds[:3] == ["classic-beep.wav", "chime.wav", "buzzer.wav"]

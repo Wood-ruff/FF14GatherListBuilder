@@ -63,6 +63,14 @@
     "english": "Create",
     "translation": ""
   },
+  "export": {
+    "english": "Export",
+    "translation": ""
+  },
+  "import": {
+    "english": "Import",
+    "translation": ""
+  },
   "empty_list_button": {
     "english": "Empty list",
     "translation": ""
