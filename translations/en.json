@@ -64,6 +64,7 @@
   "all_items": "All items",
   "no_scrip_items": "No scrip items",
   "no_matches": "Nothing matches — loosen the filters, or check the connection and reload.",
+  "per_page": "Items per page",
   "add_with_materials": "Add + materials",
   "suggest_toggle_title": "Show suggestions",
   "toast_copied": "Item copied to clipboard — paste in chat and press Tab for a link",

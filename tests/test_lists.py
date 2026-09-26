@@ -122,6 +122,19 @@ FAKE_COLLECTABLES = [
 ]
 
 
+def test_paginate_slices_and_clamps():
+    entries = list(range(60))
+    page_entries, page, page_count = lists.paginate(entries, 2, 25)
+    assert page_entries == list(range(25, 50))
+    assert (page, page_count) == (2, 3)
+    page_entries, page, page_count = lists.paginate(entries, 99, 25)
+    assert page == 3
+    assert page_entries == list(range(50, 60))
+    page_entries, page, page_count = lists.paginate(entries, 0, 7)
+    assert page == 1
+    assert len(page_entries) == lists.DEFAULT_PAGE_SIZE
+
+
 def test_collectables_are_sorted(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_collectables", lambda: FAKE_COLLECTABLES)
     assert lists.get_collectables("level")[0]["name"] == "Alpha"

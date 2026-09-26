@@ -1,0 +1,18 @@
+<div class="pagination">
+  <div class="pages">
+    {% if page > 1 %}
+    <a href="?{{ base_query }}&page=1">«</a>
+    <a href="?{{ base_query }}&page={{ page - 1 }}">‹</a>
+    {% endif %}
+    <span class="muted">{{ page }} / {{ page_count }}</span>
+    {% if page < page_count %}
+    <a href="?{{ base_query }}&page={{ page + 1 }}">›</a>
+    <a href="?{{ base_query }}&page={{ page_count }}">»</a>
+    {% endif %}
+  </div>
+  <select name="size" form="{{ filters_form }}" title="{{ t('per_page') }}">
+    {% for option in page_sizes %}
+    <option value="{{ option }}" {% if option == size %}selected{% endif %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+</div>

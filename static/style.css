@@ -202,6 +202,22 @@ form {
   width: 50%;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.pagination .pages {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.pagination select {
+  margin-left: auto;
+}
+
 .file-input {
   max-width: 260px;
   padding: 6px;

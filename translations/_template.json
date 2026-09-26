@@ -259,6 +259,10 @@
     "english": "Nothing matches — loosen the filters, or check the connection and reload.",
     "translation": ""
   },
+  "per_page": {
+    "english": "Items per page",
+    "translation": ""
+  },
   "add_with_materials": {
     "english": "Add + materials",
     "translation": ""

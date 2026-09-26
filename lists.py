@@ -371,6 +371,20 @@ def background_images():
 BUILT_IN_ALARMS = ["classic-beep.wav", "chime.wav", "buzzer.wav"]
 
 
+PAGE_SIZES = [25, 50, 100, 250]
+DEFAULT_PAGE_SIZE = 50
+
+
+def paginate(entries, page, size):
+    """Return one page of entries plus the corrected page number and page count."""
+    if size not in PAGE_SIZES:
+        size = DEFAULT_PAGE_SIZE
+    page_count = max(1, -(-len(entries) // size))
+    page = min(max(page, 1), page_count)
+    start = (page - 1) * size
+    return entries[start:start + size], page, page_count
+
+
 JOB_GROUPS = {
     "miner": ("Mining", "Quarrying"),
     "botanist": ("Logging", "Harvesting"),

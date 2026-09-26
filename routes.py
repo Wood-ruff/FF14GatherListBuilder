@@ -1,6 +1,7 @@
 import json
 import threading
 from pathlib import Path
+from urllib.parse import urlencode
 
 from flask import Blueprint, jsonify, redirect, render_template, request, send_from_directory, url_for
 
@@ -35,6 +36,24 @@ def run_in_background(task):
 
     PENDING_ADDS["count"] += 1
     threading.Thread(target=locked_task, daemon=True).start()
+
+
+def pagination_args(entries):
+    """Slice the entries to the requested page and build the template values."""
+    raw_page = request.args.get("page", "")
+    raw_size = request.args.get("size", "")
+    size = int(raw_size) if raw_size.isdigit() else lists.DEFAULT_PAGE_SIZE
+    page_entries, page, page_count = lists.paginate(
+        entries, int(raw_page) if raw_page.isdigit() else 1, size
+    )
+    base_query = urlencode([(key, value) for key, value in request.args.items() if key != "page"])
+    return page_entries, {
+        "page": page,
+        "page_count": page_count,
+        "size": size if size in lists.PAGE_SIZES else lists.DEFAULT_PAGE_SIZE,
+        "page_sizes": lists.PAGE_SIZES,
+        "base_query": base_query,
+    }
 
 
 def page_context(selected, active_tab):
@@ -85,9 +104,11 @@ def show_collectables():
         shop,
         name_filter,
     )
+    collectables, pagination = pagination_args(collectables)
     return render_template(
         "collectables.html",
         collectables=collectables,
+        **pagination,
         sort=sort,
         dir=direction,
         job=job,
@@ -124,9 +145,11 @@ def show_craftables():
         int(min_scrips) if min_scrips.isdigit() else None,
         name_filter,
     )
+    craftables, pagination = pagination_args(craftables)
     return render_template(
         "craftables.html",
         craftables=craftables,
+        **pagination,
         sort=sort,
         dir=direction,
         job=job,

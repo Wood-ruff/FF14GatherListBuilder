@@ -115,6 +115,7 @@
           {% endfor %}
         </tbody>
       </table>
+      {% with filters_form = "collectable-filters" %}{% include "_pagination.html" %}{% endwith %}
       {% else %}
       <p class="muted">{{ t("no_matches") }}</p>
       {% endif %}

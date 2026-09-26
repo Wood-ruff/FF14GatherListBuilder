@@ -386,6 +386,25 @@ def test_collectables_filters_via_query(client, monkeypatch):
     assert 'src="/job-icons/0"' in page
 
 
+def test_collectables_are_paginated(client, monkeypatch):
+    entries = [
+        {"game_id": n, "name": f"Item {n:03d}", "level": 50, "stars": 0, "job": "Mining",
+         "job_id": 0, "zone": None, "aetheryte": None, "x": None, "y": None,
+         "scrips": None, "times": [], "timed": False}
+        for n in range(1, 31)
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: entries)
+    page = client.get("/collectables?sort=name&size=25").get_data(as_text=True)
+    assert "Item 001" in page
+    assert "Item 026" not in page
+    assert "1 / 2" in page
+
+    page = client.get("/collectables?sort=name&size=25&page=2").get_data(as_text=True)
+    assert "Item 026" in page
+    assert "Item 001" not in page
+    assert "2 / 2" in page
+
+
 def test_collectable_can_be_added_to_list(client, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
     response = client.post(

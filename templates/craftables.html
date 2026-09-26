@@ -14,7 +14,7 @@
     <section class="card">
       <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
 
-      <form method="get" action="/craftables" class="filters">
+      <form method="get" action="/craftables" class="filters" id="craftable-filters">
         <input type="hidden" name="list" value="{{ selected }}">
         <input type="hidden" name="sort" value="{{ sort }}">
         <input type="hidden" name="dir" value="{{ dir }}">
@@ -86,6 +86,7 @@
           {% endfor %}
         </tbody>
       </table>
+      {% with filters_form = "craftable-filters" %}{% include "_pagination.html" %}{% endwith %}
       {% else %}
       <p class="muted">{{ t("no_matches") }}</p>
       {% endif %}
