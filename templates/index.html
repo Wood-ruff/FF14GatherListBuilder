@@ -45,6 +45,7 @@
       <table>
         <thead>
           <tr>
+            <th>{{ t("header_done") }}</th>
             <th>{{ t("header_item") }}</th>
             <th class="num">{{ t("header_amount") }}</th>
             <th class="num">{{ t("header_node") }}</th>
@@ -54,7 +55,11 @@
         </thead>
         <tbody>
           {% for item in items %}
-          <tr>
+          <tr class="{% if item.done %}done{% endif %}">
+            <td>
+              <input type="checkbox" class="done-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
+                     {% if item.done %}checked{% endif %} title="{{ t('done_tooltip') }}">
+            </td>
             <td>
               {% if item.game_id %}<img class="icon" src="/icons/{{ item.game_id }}" alt="">{% endif %}
               <span class="copy-name" data-name="{{ item.name }}" title="{{ t('copy_tooltip') }}">{{ item.name }}</span>
@@ -78,6 +83,9 @@
               {% endif %}
             </td>
             <td class="actions">
+              {% if item.craftable %}
+              <button form="mats-{{ item.id }}" class="secondary" title="{{ t('row_add_materials_title') }}">{{ t("row_add_materials") }}</button>
+              {% endif %}
               <button form="edit-{{ item.id }}" class="secondary">{{ t("save") }}</button>
               <button form="delete-{{ item.id }}" class="danger">{{ t("delete") }}</button>
             </td>
@@ -95,6 +103,10 @@
         <input type="hidden" name="list" value="{{ selected }}">
         <input type="hidden" name="id" value="{{ item.id }}">
       </form>
+      <form id="mats-{{ item.id }}" method="post" action="/add-materials">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input type="hidden" name="id" value="{{ item.id }}">
+      </form>
       {% endfor %}
       {% else %}
       <p class="muted">{{ t("empty_hint") }}</p>
@@ -105,4 +117,5 @@
 
 {% block scripts %}
 <script>window.reloadWhenAddsFinish = true;</script>
+<script src="{{ url_for('static', filename='done.js') }}"></script>
 {% endblock %}

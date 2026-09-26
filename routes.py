@@ -201,6 +201,31 @@ def craft_item():
     return redirect(url_for("routes.show_list", list=list_name))
 
 
+@routes.post("/add-materials")
+def add_materials():
+    """Add the base materials for one list item, then show the list again."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+
+    if list_name and item_id.isdigit():
+        lists.add_materials_for(list_name, int(item_id))
+
+    return redirect(url_for("routes.show_list", list=list_name))
+
+
+@routes.post("/toggle-done")
+def toggle_done():
+    """Mark one list item as done or not done."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+    done = request.form.get("done") == "1"
+
+    if list_name and item_id.isdigit():
+        lists.set_done(list_name, int(item_id), done)
+
+    return ("", 204)
+
+
 @routes.post("/update")
 def update_item():
     """Change one item's amount, then show the list again."""

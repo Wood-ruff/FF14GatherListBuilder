@@ -321,6 +321,49 @@ button.danger:hover {
   cursor: pointer;
 }
 
+.done-toggle {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.done-toggle::before {
+  content: "✓";
+  font-size: 13px;
+  line-height: 1;
+  color: transparent;
+  transition: color 0.2s ease;
+}
+
+.done-toggle:hover {
+  border-color: #c9a227;
+}
+
+.done-toggle:checked {
+  background: #33280f;
+  border-color: #c9a227;
+  box-shadow: 0 0 10px rgba(201, 162, 39, 0.45);
+}
+
+.done-toggle:checked::before {
+  color: #eccf6e;
+}
+
+tr.done td {
+  color: var(--text-muted);
+}
+
+tr.done .copy-name {
+  text-decoration: line-through;
+}
+
 .job-entry {
   white-space: nowrap;
   margin-right: 8px;

@@ -29,11 +29,24 @@ def get_list_names():
 
 
 def get_items(list_name):
-    """Return the items of the named list."""
+    """Return the items of the named list, craftable items first."""
     list_name = normalize_spaces(list_name)
     if not is_valid_list_name(list_name):
         return []
-    return storage.load_items(list_name)
+    items = storage.load_items(list_name)
+    return sorted(items, key=item_sort_group)
+
+
+CRYSTAL_GAME_IDS = range(2, 20)
+
+
+def item_sort_group(item):
+    """Group items for display: craftables first, then normal items, crystals last."""
+    if item.get("game_id") in CRYSTAL_GAME_IDS:
+        return 2
+    if item.get("craftable", False):
+        return 0
+    return 1
 
 
 def add_item(list_name, item_name, amount):
@@ -56,16 +69,20 @@ def new_item(items, item_name, amount):
     game_item = xivapi.fetch_item(item_name)
     game_id = None
     gathering = None
+    craftable = False
     if game_item:
         item_name = game_item["fields"]["Name"]
         game_id = game_item["row_id"]
         gathering = xivapi.fetch_gathering(game_id)
+        craftable = xivapi.fetch_recipe(item_name) is not None
     return {
         "id": next_item_id(items),
         "name": item_name,
         "amount": amount,
         "game_id": game_id,
         "gathering": gathering,
+        "craftable": craftable,
+        "done": False,
     }
 
 
@@ -87,6 +104,32 @@ def add_ingredients_of(list_name, item_name, amount, depth):
     crafts = math.ceil(amount / recipe["yields"])
     for ingredient in recipe["ingredients"]:
         add_ingredients_of(list_name, ingredient["name"], ingredient["amount"] * crafts, depth + 1)
+
+
+def add_materials_for(list_name, item_id):
+    """Add the base materials for one list item, scaled by its current amount."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    items = storage.load_items(list_name)
+    item = find_item_by_id(items, item_id)
+    if not item:
+        return
+    if xivapi.fetch_recipe(item["name"]):
+        add_crafted_item(list_name, item["name"], item["amount"])
+
+
+def set_done(list_name, item_id, done):
+    """Mark one item in the named list as done or not done."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    items = storage.load_items(list_name)
+    item = find_item_by_id(items, item_id)
+    if not item:
+        return
+    item["done"] = done
+    storage.save_items(list_name, items)
 
 
 def update_item(list_name, item_id, amount):

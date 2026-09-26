@@ -2,7 +2,11 @@ import pytest
 
 import lists
 
-FAKE_ITEMS = {"iron ore": {"row_id": 5111, "fields": {"Name": "Iron Ore"}}}
+FAKE_ITEMS = {
+    "iron ore": {"row_id": 5111, "fields": {"Name": "Iron Ore"}},
+    "crested headband": {"row_id": 47184, "fields": {"Name": "Crested Headband"}},
+    "wind cluster": {"row_id": 16, "fields": {"Name": "Wind Cluster"}},
+}
 
 
 FAKE_RECIPES = {
@@ -51,8 +55,8 @@ def test_add_and_get_items(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Copper Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None},
-        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None},
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False},
+        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None, "craftable": False, "done": False},
     ]
 
 
@@ -61,7 +65,7 @@ def test_adding_same_item_sums_amounts(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Iron Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False}
     ]
 
 
@@ -70,7 +74,7 @@ def test_adding_same_item_ignores_case(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "iron ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False}
     ]
 
 
@@ -80,7 +84,7 @@ def test_spaces_are_normalized(tmp_path, monkeypatch):
     lists.add_item("My Ores", "Iron Ore", 5)
     assert lists.get_list_names() == ["My Ores"]
     assert lists.get_items(" My   Ores  ") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False}
     ]
 
 
@@ -182,6 +186,56 @@ def test_add_craft_with_materials_adds_both(tmp_path, monkeypatch):
     assert names == {"Crested Headband": 1, "Iron Ore": 4, "Wind Cluster": 3}
 
 
+def test_craftable_items_are_listed_first(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mix", "Iron Ore", 1)
+    lists.add_item("Mix", "Crested Headband", 1)
+    lists.add_item("Mix", "Copper Ore", 1)
+    names = [item["name"] for item in lists.get_items("Mix")]
+    assert names == ["Crested Headband", "Iron Ore", "Copper Ore"]
+
+
+def test_set_done_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 5)
+    lists.set_done("Mats", 1, True)
+    assert lists.get_items("Mats")[0]["done"] is True
+    lists.set_done("Mats", 1, False)
+    assert lists.get_items("Mats")[0]["done"] is False
+
+
+def test_crystals_are_listed_last(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mix", "Wind Cluster", 3)
+    lists.add_item("Mix", "Iron Ore", 1)
+    lists.add_item("Mix", "Crested Headband", 1)
+    names = [item["name"] for item in lists.get_items("Mix")]
+    assert names == ["Crested Headband", "Iron Ore", "Wind Cluster"]
+
+
+def test_add_materials_for_list_item(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Crafts", "Crested Headband", 2)
+    lists.add_materials_for("Crafts", 1)
+    names = {item["name"]: item["amount"] for item in lists.get_items("Crafts")}
+    assert names == {"Crested Headband": 2, "Iron Ore": 8, "Wind Cluster": 6}
+
+
+def test_add_materials_for_uncraftable_item_does_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 5)
+    lists.add_materials_for("Mats", 1)
+    names = {item["name"]: item["amount"] for item in lists.get_items("Mats")}
+    assert names == {"Iron Ore": 5}
+
+
+def test_add_materials_for_unknown_id_does_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 5)
+    lists.add_materials_for("Mats", 99)
+    assert len(lists.get_items("Mats")) == 1
+
+
 def test_add_craft_without_recipe_adds_item_once(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_craft_with_materials("Crafts", "Iron Ore", 5)
@@ -206,7 +260,7 @@ def test_update_item_changes_amount(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.update_item("Ores", 1, 99)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None}
+        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None, "craftable": False, "done": False}
     ]
 
 
@@ -221,7 +275,7 @@ def test_added_item_takes_name_from_api(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "iRoN oRe", 20)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None}
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False}
     ]
 
 
@@ -257,7 +311,7 @@ def test_unknown_item_keeps_typed_name(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "Mystery Rock", 3)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None}
+        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None, "craftable": False, "done": False}
     ]
 
 

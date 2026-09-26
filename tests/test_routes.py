@@ -39,6 +39,43 @@ def test_add_rejects_missing_fields(client):
     assert "<td>" not in page
 
 
+def test_materials_button_only_for_craftable_items(client, monkeypatch):
+    item = {"row_id": 47184, "fields": {"Name": "Crested Headband"}}
+    recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipe)
+    client.post("/add", data={"list": "Demo", "item": "Crested Headband", "amount": "1"})
+
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: None)
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: None)
+    client.post("/add", data={"list": "Demo", "item": "Mystery Rock", "amount": "1"})
+
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'form="mats-1"' in page
+    assert 'form="mats-2"' not in page
+
+
+def test_add_materials_via_post(client, monkeypatch):
+    recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}
+    recipes = {"crested headband": recipe}
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipes.get(name.lower()))
+    client.post("/add", data={"list": "Demo", "item": "Crested Headband", "amount": "2"})
+    response = client.post("/add-materials", data={"list": "Demo", "id": "1"})
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Iron Ore" in page
+    assert 'value="8"' in page
+
+
+def test_toggle_done_via_post(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    response = client.post("/toggle-done", data={"list": "Demo", "id": "1", "done": "1"})
+    assert response.status_code == 204
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'class="done"' in page
+    assert "checked" in page
+
+
 def test_update_item_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "20"})
     response = client.post("/update", data={"list": "Demo", "id": "1", "amount": "50"})
