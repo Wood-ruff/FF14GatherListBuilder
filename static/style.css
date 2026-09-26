@@ -561,9 +561,11 @@ tr.done td {
 }
 
 .alarm-mark {
+  width: 16px;
+  height: 16px;
   margin-left: 0;
   margin-right: 8px;
-  border: 2px solid #7a6a33;
+  border: 2px solid #a8842c;
   background: radial-gradient(circle at 32% 32%, #383020, #1a150c 75%);
 }
 
