@@ -39,6 +39,7 @@
     </div>
   </header>
 
+  <div class="page">
   <nav class="tabs">
     <a href="/?list={{ selected }}" class="tab {% if active_tab == 'lists' %}active{% endif %}">{{ t("tab_lists") }}</a>
     <a href="/collectables?list={{ selected }}" class="tab {% if active_tab == 'collectables' %}active{% endif %}">{{ t("tab_collectables") }}</a>
@@ -52,6 +53,7 @@
 
     {% block content %}{% endblock %}
   </main>
+  </div>
 
   <div id="toast" class="toast"></div>
 

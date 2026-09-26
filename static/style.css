@@ -63,9 +63,15 @@ h2 {
   letter-spacing: 0.08em;
 }
 
+.page {
+  width: fit-content;
+  min-width: min(1000px, 100%);
+  max-width: 100%;
+  margin: 0 auto;
+}
+
 .tabs {
-  max-width: 1000px;
-  margin: 8px auto -1px;
+  margin: 8px 0 -1px;
   padding: 0 32px;
   display: flex;
   gap: 4px;
@@ -92,8 +98,6 @@ h2 {
 }
 
 main {
-  max-width: 1000px;
-  margin: 0 auto;
   padding: 0 16px 16px;
   display: grid;
   gap: 16px;
@@ -315,14 +319,14 @@ button:disabled {
 }
 
 button.secondary {
-  background: transparent;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
 }
 
 button.secondary:hover {
   border-color: var(--text-muted);
-  background: transparent;
+  background: var(--bg);
 }
 
 table {
@@ -394,14 +398,14 @@ td input[name="amount"] {
 }
 
 button.danger {
-  background: transparent;
+  background: var(--bg);
   color: #e06c75;
   border: 1px solid var(--border);
 }
 
 button.danger:hover {
   border-color: #e06c75;
-  background: transparent;
+  background: var(--bg);
 }
 
 .muted {
