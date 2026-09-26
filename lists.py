@@ -36,15 +36,21 @@ def get_items(list_name):
     items = sorted(storage.load_items(list_name), key=item_sort_group)
     for item in items:
         item["group"] = item_sort_group(item)
+        item["crystal"] = is_crystal(item)
     return items
 
 
 CRYSTAL_GAME_IDS = range(2, 20)
 
 
+def is_crystal(item):
+    """Check whether an item is an elemental shard, crystal or cluster."""
+    return item.get("game_id") in CRYSTAL_GAME_IDS
+
+
 def item_sort_group(item):
     """Group items for display: craftables first, then normal items, crystals last."""
-    if item.get("game_id") in CRYSTAL_GAME_IDS:
+    if is_crystal(item):
         return 2
     if item.get("craftable", False):
         return 0
@@ -85,6 +91,8 @@ def new_item(items, item_name, amount):
         "gathering": gathering,
         "craftable": craftable,
         "done": False,
+        "muted": False,
+        "materials_added": False,
     }
 
 
@@ -119,10 +127,26 @@ def add_materials_for(list_name, item_id):
         return
     if xivapi.fetch_recipe(item["name"]):
         add_crafted_item(list_name, item["name"], item["amount"])
+        set_item_flag(list_name, item_id, "materials_added", True)
 
 
 def set_done(list_name, item_id, done):
     """Mark one item in the named list as done or not done."""
+    set_item_flag(list_name, item_id, "done", done)
+
+
+def set_muted(list_name, item_id, muted):
+    """Suppress or restore the alarm of one item in the named list."""
+    set_item_flag(list_name, item_id, "muted", muted)
+
+
+def set_materials_added(list_name, item_id, added):
+    """Mark whether the materials of one item were added to the list."""
+    set_item_flag(list_name, item_id, "materials_added", added)
+
+
+def set_item_flag(list_name, item_id, flag, value):
+    """Set one boolean flag on one item in the named list."""
     list_name = normalize_spaces(list_name)
     if not is_valid_list_name(list_name):
         return
@@ -130,7 +154,7 @@ def set_done(list_name, item_id, done):
     item = find_item_by_id(items, item_id)
     if not item:
         return
-    item["done"] = done
+    item[flag] = value
     storage.save_items(list_name, items)
 
 
@@ -382,6 +406,19 @@ def add_craft_with_materials(list_name, item_name, amount):
     recipe = xivapi.fetch_recipe(normalize_spaces(item_name))
     if recipe:
         add_crafted_item(list_name, item_name, amount)
+        mark_materials_added(list_name, item_name)
+
+
+def mark_materials_added(list_name, item_name):
+    """Remember that the materials of one item were added to the list."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    items = storage.load_items(list_name)
+    item = find_item(items, normalize_spaces(item_name))
+    if item:
+        item["materials_added"] = True
+        storage.save_items(list_name, items)
 
 
 def alarm_sounds():

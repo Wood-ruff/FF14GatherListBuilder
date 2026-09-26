@@ -236,6 +236,11 @@ button:hover {
   background: var(--accent-hover);
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 button.secondary {
   background: transparent;
   color: var(--text);
@@ -388,6 +393,74 @@ tr.group-start td {
 
 tr.done td {
   color: var(--text-muted);
+}
+
+.mute-toggle,
+.materials-toggle {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  margin-left: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.9);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.mute-toggle::before,
+.materials-toggle::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.mute-toggle {
+  border: 2px solid #7a4040;
+  background: radial-gradient(circle at 32% 32%, #3a2424, #1a0f0f 75%);
+}
+
+.materials-toggle {
+  border: 2px solid #40704c;
+  background: radial-gradient(circle at 32% 32%, #22362a, #0e1a12 75%);
+}
+
+.materials-toggle:hover {
+  border-color: #6fce8a;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.9), 0 0 5px rgba(120, 220, 150, 0.4);
+}
+
+.materials-toggle:checked {
+  border-color: #97e8ae;
+  background: radial-gradient(circle at 50% 38%, #1e6432, #0d2b16 80%);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.5), 0 0 9px rgba(130, 230, 160, 0.6);
+}
+
+.materials-toggle:checked::before {
+  background: radial-gradient(circle at 35% 35%, #e2ffe9, #52c974 75%);
+  box-shadow: 0 0 6px rgba(150, 255, 180, 0.95);
+}
+
+.mute-toggle:hover {
+  border-color: #e06c75;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.9), 0 0 5px rgba(224, 108, 117, 0.4);
+}
+
+.mute-toggle:checked {
+  border-color: #f09090;
+  background: radial-gradient(circle at 50% 38%, #6e1f26, #2e0e11 80%);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.5), 0 0 9px rgba(240, 120, 120, 0.6);
+}
+
+.mute-toggle:checked::before {
+  background: radial-gradient(circle at 35% 35%, #ffdcdc, #e05252 75%);
+  box-shadow: 0 0 6px rgba(255, 140, 140, 0.95);
 }
 
 tr.done .copy-name {

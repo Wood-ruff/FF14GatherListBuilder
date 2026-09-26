@@ -88,6 +88,16 @@ function setupAlarmToggle() {
   document.getElementById("alarm-test").addEventListener("click", playAlarm);
 }
 
+function alarmSuppressed(timer) {
+  const row = timer.closest("tr");
+  if (!row) {
+    return false;
+  }
+  const mute = row.querySelector(".mute-toggle");
+  const done = row.querySelector(".done-toggle");
+  return (mute !== null && mute.checked) || (done !== null && done.checked);
+}
+
 function updateTimers() {
   const now = eorzeaNowMinutes();
   let justOpened = false;
@@ -99,7 +109,7 @@ function updateTimers() {
       timer.classList.add("open");
       if (timer.dataset.wasOpen !== "1") {
         timer.dataset.wasOpen = "1";
-        if (timer.dataset.alarm === "1") {
+        if (timer.dataset.alarm === "1" && !alarmSuppressed(timer)) {
           justOpened = true;
         }
       }

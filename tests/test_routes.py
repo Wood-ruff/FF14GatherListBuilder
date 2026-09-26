@@ -67,6 +67,51 @@ def test_add_materials_via_post(client, monkeypatch):
     assert 'value="8"' in page
 
 
+def test_crystals_show_no_timer_and_timed_items_get_mute_toggle(client, monkeypatch):
+    gathering = {
+        "timed": True,
+        "times": [{"start": 600, "duration": 120}],
+        "zone": "Living Memory",
+        "aetheryte": None,
+    }
+    cluster = {"row_id": 16, "fields": {"Name": "Wind Cluster"}}
+    leaf = {"row_id": 43930, "fields": {"Name": "Bay Leaf"}}
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: gathering)
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: cluster)
+    client.post("/add", data={"list": "Demo", "item": "Wind Cluster", "amount": "3"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "node-timer" not in page
+
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: leaf)
+    client.post("/add", data={"list": "Demo", "item": "Bay Leaf", "amount": "1"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "node-timer" in page
+    assert page.count('class="mute-toggle"') == 1
+
+
+def test_craftable_item_shows_materials_toggle(client, monkeypatch):
+    item = {"row_id": 47184, "fields": {"Name": "Crested Headband"}}
+    recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipe)
+    client.post("/add", data={"list": "Demo", "item": "Crested Headband", "amount": "1"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'class="materials-toggle"' in page
+
+    response = client.post("/toggle-materials", data={"list": "Demo", "id": "1", "added": "1"})
+    assert response.status_code == 204
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "checked" in page
+
+
+def test_toggle_mute_via_post(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    response = client.post("/toggle-mute", data={"list": "Demo", "id": "1", "muted": "1"})
+    assert response.status_code == 204
+    items = client.get("/?list=Demo").get_data(as_text=True)
+    assert items
+
+
 def test_toggle_done_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
     response = client.post("/toggle-done", data={"list": "Demo", "id": "1", "done": "1"})

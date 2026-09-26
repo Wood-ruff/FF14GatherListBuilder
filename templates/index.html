@@ -49,7 +49,7 @@
             <th>{{ t("header_done") }}</th>
             <th>{{ t("header_item") }}</th>
             <th class="num">{{ t("header_amount") }}</th>
-            <th class="num">{{ t("header_node") }}</th>
+            <th class="num">{{ t("header_node_materials") }}</th>
             <th class="num">{{ t("header_game_id") }}</th>
             <th></th>
           </tr>
@@ -67,11 +67,16 @@
             </td>
             <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
             <td class="num">
-              {% if item.gathering and item.gathering.timed %}
+              {% if item.gathering and item.gathering.timed and not item.crystal %}
               <span class="node-timer" data-alarm="1" data-times='{{ item.gathering.times | tojson }}'
                     data-zone="{{ item.gathering.zone or "?" }}"
                     data-aetheryte="{{ item.gathering.aetheryte or "" }}"
                     title="{{ t('timer_tooltip') }}">…</span>
+              <input type="checkbox" class="mute-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
+                     {% if item.muted %}checked{% endif %} title="{{ t('mute_tooltip') }}">
+              {% elif item.craftable %}
+              <input type="checkbox" class="materials-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
+                     {% if item.materials_added %}checked{% endif %} title="{{ t('materials_tooltip') }}">
               {% else %}
               <span class="muted">—</span>
               {% endif %}

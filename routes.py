@@ -245,6 +245,32 @@ def toggle_done():
     return ("", 204)
 
 
+@routes.post("/toggle-mute")
+def toggle_mute():
+    """Suppress or restore the alarm of one list item."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+    muted = request.form.get("muted") == "1"
+
+    if list_name and item_id.isdigit():
+        lists.set_muted(list_name, int(item_id), muted)
+
+    return ("", 204)
+
+
+@routes.post("/toggle-materials")
+def toggle_materials():
+    """Mark whether one list item's materials were added."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+    added = request.form.get("added") == "1"
+
+    if list_name and item_id.isdigit():
+        lists.set_materials_added(list_name, int(item_id), added)
+
+    return ("", 204)
+
+
 @routes.post("/update")
 def update_item():
     """Change one item's amount, then show the list again."""

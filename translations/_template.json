@@ -107,6 +107,14 @@
     "english": "Mark as done",
     "translation": ""
   },
+  "mute_tooltip": {
+    "english": "Suppress the alarm for this item",
+    "translation": ""
+  },
+  "materials_tooltip": {
+    "english": "Materials added to the list — click to toggle",
+    "translation": ""
+  },
   "header_item": {
     "english": "Item",
     "translation": ""
@@ -117,6 +125,10 @@
   },
   "header_node": {
     "english": "Node up",
+    "translation": ""
+  },
+  "header_node_materials": {
+    "english": "Node up / Materials added",
     "translation": ""
   },
   "header_game_id": {
