@@ -11,7 +11,9 @@ def isolated_caches(tmp_path, monkeypatch):
     monkeypatch.setattr("item_cache.ICONS_DIR", tmp_path / "icons")
     xivapi.CACHE.clear()
     xivapi.RECIPES.clear()
+    xivapi.SUGGESTIONS.clear()
     xivapi.API_STATUS["last_call_failed"] = False
+    monkeypatch.setattr("settings.get_language", lambda: "en")
 
 
 SEARCH_RESULTS = [
@@ -127,6 +129,41 @@ def test_search_survives_network_error(monkeypatch):
 
     monkeypatch.setattr("requests.get", broken_get)
     assert xivapi.fetch_item_id("Iron Ore") is None
+
+
+def test_suggestions_return_names_and_are_cached(monkeypatch):
+    calls = []
+
+    def counting_get(*args, **kwargs):
+        calls.append(1)
+        return item_search_response(SEARCH_RESULTS)
+
+    monkeypatch.setattr("requests.get", counting_get)
+    names = xivapi.search_item_names("iron")
+    assert names == ["Iron Ore", "Doman Iron Ore"]
+    xivapi.search_item_names("Iron")
+    assert len(calls) == 1
+
+
+def test_suggestions_use_the_higher_search_limit(monkeypatch):
+    seen_params = []
+
+    def capturing_get(url, params=None, **kwargs):
+        seen_params.append(params)
+        return item_search_response(SEARCH_RESULTS)
+
+    monkeypatch.setattr("requests.get", capturing_get)
+    xivapi.search_item_names("iron")
+    assert seen_params[0]["limit"] == xivapi.SUGGESTION_LIMIT
+
+
+def test_suggestions_are_cached_per_language(monkeypatch):
+    monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response(SEARCH_RESULTS))
+    xivapi.search_item_names("iron")
+
+    monkeypatch.setattr("settings.get_language", lambda: "de")
+    monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response([]))
+    assert xivapi.search_item_names("iron") == []
 
 
 def test_network_error_sets_and_success_clears_failure_flag(monkeypatch):

@@ -137,6 +137,14 @@ def icon_folder():
     return xivapi.icon_folder()
 
 
+def suggest_item_names(text):
+    """Return item name suggestions for a partial item name."""
+    text = normalize_spaces(text)
+    if len(text) < 3:
+        return []
+    return xivapi.search_item_names(text)
+
+
 def last_lookup_failed():
     """Tell whether the most recent api lookup failed to reach xivapi."""
     return xivapi.last_call_failed()

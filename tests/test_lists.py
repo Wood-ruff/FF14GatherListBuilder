@@ -95,6 +95,14 @@ def test_invalid_list_name_is_ignored(tmp_path, monkeypatch):
     assert lists.get_items("../evil") == []
 
 
+def test_short_suggestion_queries_are_not_searched(monkeypatch):
+    calls = []
+    monkeypatch.setattr("xivapi.search_item_names", lambda text: calls.append(text))
+    assert lists.suggest_item_names("ir") == []
+    assert lists.suggest_item_names("  a ") == []
+    assert calls == []
+
+
 def test_unknown_list_is_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     assert lists.get_items("DoesNotExist") == []

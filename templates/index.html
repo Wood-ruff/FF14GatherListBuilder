@@ -64,14 +64,22 @@
 
       <form method="post" action="/add" class="add-form">
         <input type="hidden" name="list" value="{{ selected }}">
-        <input name="item" placeholder="Item name" required>
+        <div class="suggest-box">
+          <input name="item" placeholder="Item name" required autocomplete="off">
+          <button type="button" class="suggest-toggle" aria-label="Show suggestions">&#9662;</button>
+          <div class="suggest-list" hidden></div>
+        </div>
         <input name="amount" type="number" min="1" placeholder="Amount" required>
         <button type="submit">Add</button>
       </form>
 
       <form method="post" action="/craft" class="add-form">
         <input type="hidden" name="list" value="{{ selected }}">
-        <input name="item" placeholder="Craftable item — adds its base materials" required>
+        <div class="suggest-box">
+          <input name="item" placeholder="Craftable item — adds its base materials" required autocomplete="off">
+          <button type="button" class="suggest-toggle" aria-label="Show suggestions">&#9662;</button>
+          <div class="suggest-list" hidden></div>
+        </div>
         <input name="amount" type="number" min="1" placeholder="Amount" required>
         <button type="submit" class="secondary">Add materials</button>
       </form>
@@ -121,5 +129,7 @@
     </section>
     {% endif %}
   </main>
+
+  <script src="{{ url_for('static', filename='suggest.js') }}"></script>
 </body>
 </html>

@@ -11,6 +11,7 @@ ASSET_URL = "https://v2.xivapi.com/api/asset"
 
 CACHE = {}
 RECIPES = {}
+SUGGESTIONS = {}
 API_STATUS = {"last_call_failed": False}
 
 LOG = logging.getLogger(__name__)
@@ -25,7 +26,20 @@ def clear_cache():
     """Forget all cached items and recipes, in memory and on disk."""
     CACHE.clear()
     RECIPES.clear()
+    SUGGESTIONS.clear()
     item_cache.clear()
+
+
+SUGGESTION_LIMIT = 50
+
+
+def search_item_names(text):
+    """Return item names matching a partial search, remembered per query and language."""
+    key = f"{settings.get_language()}:{text.lower()}"
+    if key not in SUGGESTIONS:
+        results = search_items(text, SUGGESTION_LIMIT)
+        SUGGESTIONS[key] = [result["fields"]["Name"] for result in results]
+    return SUGGESTIONS[key]
 
 
 def fetch_item_id(item_name):
@@ -131,13 +145,13 @@ def find_exact_match(item_name):
     return None
 
 
-def search_items(item_name):
+def search_items(item_name, limit=10):
     """Query xivapi for items matching the name, returning an empty list on errors."""
     query = f'Name~"{item_name}"'
     params = {
         "sheets": "Item",
         "query": query,
-        "limit": 10,
+        "limit": limit,
         "language": settings.get_language(),
     }
     data = get_json(SEARCH_URL, params)

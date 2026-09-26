@@ -94,8 +94,55 @@ form {
   margin-bottom: 16px;
 }
 
-.add-form input[name="item"] {
+.add-form .suggest-box {
   flex: 1;
+}
+
+.suggest-box {
+  position: relative;
+}
+
+.suggest-box input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.suggest-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 4px 8px;
+}
+
+.suggest-toggle:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.suggest-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.suggest-list div {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.suggest-list div:hover {
+  background: rgba(201, 79, 79, 0.15);
 }
 
 .add-form input[name="amount"] {

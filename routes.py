@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, send_from_directory, url_for
 
 import lists
 
@@ -19,6 +19,12 @@ def show_list():
         languages=lists.supported_languages(),
         api_failed=lists.last_lookup_failed(),
     )
+
+
+@routes.get("/suggest")
+def suggest_items():
+    """Return item name suggestions for a partial search as JSON."""
+    return jsonify(lists.suggest_item_names(request.args.get("q", "")))
 
 
 @routes.get("/icons/<int:game_id>")

@@ -101,6 +101,13 @@ def test_delete_list_via_post(client):
     assert "Demo" not in page
 
 
+def test_suggest_returns_json_names(client, monkeypatch):
+    monkeypatch.setattr("xivapi.search_item_names", lambda text: ["Iron Ore", "Iron Ingot"])
+    response = client.get("/suggest?q=iron")
+    assert response.status_code == 200
+    assert response.get_json() == ["Iron Ore", "Iron Ingot"]
+
+
 def test_banner_shows_when_api_is_unreachable(client, monkeypatch):
     monkeypatch.setattr("lists.last_lookup_failed", lambda: True)
     page = client.get("/").get_data(as_text=True)
