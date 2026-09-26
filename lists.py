@@ -356,6 +356,18 @@ def suggest_item_names(text):
     return xivapi.search_item_names(text)
 
 
+BACKGROUNDS_DIR = Path(__file__).parent / "static" / "backgrounds"
+IMAGE_PATTERNS = ("*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif")
+
+
+def background_images():
+    """Return the file names of all available background images."""
+    names = []
+    for pattern in IMAGE_PATTERNS:
+        names.extend(path.name for path in BACKGROUNDS_DIR.glob(pattern))
+    return sorted(names)
+
+
 BUILT_IN_ALARMS = ["classic-beep.wav", "chime.wav", "buzzer.wav"]
 
 

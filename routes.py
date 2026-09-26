@@ -47,6 +47,7 @@ def page_context(selected, active_tab):
         "languages": lists.supported_languages(),
         "api_failed": lists.last_lookup_failed(),
         "alarm_sounds": lists.alarm_sounds(),
+        "backgrounds": lists.background_images(),
     }
 
 

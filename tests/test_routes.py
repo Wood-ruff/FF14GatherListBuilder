@@ -453,6 +453,11 @@ def test_pending_counter_returns_to_zero(client):
     assert client.get("/pending").get_json() == 0
 
 
+def test_backgrounds_are_passed_to_the_page(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "window.BACKGROUNDS" in page
+
+
 def test_alarm_dropdown_is_rendered(client):
     page = client.get("/").get_data(as_text=True)
     assert 'id="alarm-sound"' in page

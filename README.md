@@ -83,6 +83,11 @@ asked about each item at most once. **Clear caches** (top right) wipes it, for e
 game patch. Your lists live in `data/lists/` as plain JSON files — back them up by copying that
 folder.
 
+### Backgrounds
+
+Drop images into `static/backgrounds/` and every new browser tab uses a random one as the page
+background. The bundled background images are AI-generated (Midjourney).
+
 ---
 
 Built with [Claude](https://claude.com/claude-code).
