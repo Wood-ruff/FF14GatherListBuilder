@@ -93,6 +93,7 @@ def new_item(items, item_name, amount):
         "done": False,
         "muted": False,
         "materials_added": False,
+        "sticky": False,
         "language": settings.get_language(),
     }
 
@@ -144,6 +145,11 @@ def set_muted(list_name, item_id, muted):
 def set_materials_added(list_name, item_id, added):
     """Mark whether the materials of one item were added to the list."""
     set_item_flag(list_name, item_id, "materials_added", added)
+
+
+def set_sticky(list_name, item_id, sticky):
+    """Pin or unpin one item of the named list."""
+    set_item_flag(list_name, item_id, "sticky", sticky)
 
 
 def set_item_flag(list_name, item_id, flag, value):
@@ -277,6 +283,7 @@ def imported_item(item_id, item):
         "done": bool(item.get("done", False)),
         "muted": bool(item.get("muted", False)),
         "materials_added": bool(item.get("materials_added", False)),
+        "sticky": bool(item.get("sticky", False)),
         "language": None,
     }
 

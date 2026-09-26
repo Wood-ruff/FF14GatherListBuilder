@@ -41,7 +41,7 @@
       </form>
 
       {% if collectables %}
-      <table>
+      <table class="pin-table">
         <thead>
           <tr>
             <th>{{ sort_link("name", t("header_item")) }}</th>
@@ -58,6 +58,8 @@
           {% for collectable in collectables %}
           <tr>
             <td>
+              <button type="button" class="sticky-toggle" data-store="collectables" data-id="{{ collectable.game_id }}"
+                      title="{{ t('sticky_tooltip') }}"></button>
               <a href="https://www.garlandtools.org/db/#item/{{ collectable.game_id }}" target="_blank" rel="noopener">{{ collectable.name }}</a>
             </td>
             <td>

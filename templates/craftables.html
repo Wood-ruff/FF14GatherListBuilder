@@ -41,7 +41,7 @@
       </form>
 
       {% if craftables %}
-      <table>
+      <table class="pin-table">
         <thead>
           <tr>
             <th>{{ sort_link("name", t("header_item")) }}</th>
@@ -56,6 +56,8 @@
           {% for craftable in craftables %}
           <tr>
             <td>
+              <button type="button" class="sticky-toggle" data-store="craftables" data-id="{{ craftable.game_id }}"
+                      title="{{ t('sticky_tooltip') }}"></button>
               <a href="https://www.garlandtools.org/db/#item/{{ craftable.game_id }}" target="_blank" rel="noopener">{{ craftable.name }}</a>
             </td>
             <td>

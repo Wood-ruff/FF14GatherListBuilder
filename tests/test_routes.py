@@ -138,6 +138,16 @@ def test_opening_a_list_in_a_new_language_localizes_it(client, monkeypatch):
     assert "Eisenerz" in page
 
 
+def test_toggle_sticky_via_post(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    response = client.post("/toggle-sticky", data={"list": "Demo", "id": "1", "sticky": "1"})
+    assert response.status_code == 204
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    first_row_tag = page.split("<tbody>")[1].split(">")[0]
+    assert "sticky" in first_row_tag
+    assert 'class="sticky-toggle"' in page
+
+
 def test_toggle_done_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
     response = client.post("/toggle-done", data={"list": "Demo", "id": "1", "done": "1"})
@@ -348,6 +358,7 @@ def test_collectables_tab_lists_items(client, monkeypatch):
     assert "data-alarm" not in page
     assert 'href="https://www.garlandtools.org/db/#item/43930"' in page
     assert 'href="https://ffxiv.consolegameswiki.com/wiki/Living_Memory"' in page
+    assert 'data-store="collectables"' in page
 
 
 def test_list_picker_is_on_both_tabs(client, monkeypatch):
@@ -395,6 +406,7 @@ def test_craftables_tab_lists_items(client, monkeypatch):
     assert 'src="/craft-icons/62015"' in page
     assert "12 / 18 / 27" in page
     assert 'href="https://www.garlandtools.org/db/#item/43954"' in page
+    assert 'data-store="craftables"' in page
 
 
 def test_craftable_add_puts_item_and_materials_in_list(client, monkeypatch):

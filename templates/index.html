@@ -47,7 +47,7 @@
       </form>
 
       {% if items %}
-      <table>
+      <table class="pin-table">
         <thead>
           <tr>
             <th>{{ t("header_done") }}</th>
@@ -60,8 +60,10 @@
         </thead>
         <tbody>
           {% for item in items %}
-          <tr class="{% if item.done %}done{% endif %} {% if loop.changed(item.group) and not loop.first %}group-start{% endif %}">
+          <tr class="{% if item.done %}done{% endif %} {% if item.sticky %}sticky{% endif %} {% if loop.changed(item.group) and not loop.first %}group-start{% endif %}">
             <td>
+              <button type="button" class="sticky-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
+                      title="{{ t('sticky_tooltip') }}"></button>
               <input type="checkbox" class="done-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
                      {% if item.done %}checked{% endif %} title="{{ t('done_tooltip') }}">
             </td>

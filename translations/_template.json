@@ -115,6 +115,10 @@
     "english": "Mark as done",
     "translation": ""
   },
+  "sticky_tooltip": {
+    "english": "Pin this item so it stays visible while scrolling",
+    "translation": ""
+  },
   "mute_tooltip": {
     "english": "Suppress the alarm for this item",
     "translation": ""

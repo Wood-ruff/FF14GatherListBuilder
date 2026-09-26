@@ -28,6 +28,7 @@
   "empty_hint": "Diese Liste ist leer — füge oben das erste Item hinzu.",
   "header_done": "Erledigt",
   "done_tooltip": "Als erledigt markieren",
+  "sticky_tooltip": "Item anheften, damit es beim Scrollen sichtbar bleibt",
   "mute_tooltip": "Alarm für dieses Item unterdrücken",
   "materials_tooltip": "Materialien wurden hinzugefügt — Klick zum Umschalten",
   "header_item": "Item",

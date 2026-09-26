@@ -416,6 +416,46 @@ tr.group-start td {
   border-top: 4px solid #5c4238;
 }
 
+.pin-table td:first-child {
+  position: relative;
+  padding-left: 28px;
+  white-space: nowrap;
+}
+
+.sticky-toggle {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 10px;
+  padding: 0;
+  border: none;
+  border-radius: 0 4px 4px 0;
+  background: var(--border);
+  cursor: pointer;
+}
+
+.sticky-toggle:hover {
+  background: #6e1423;
+  border: 1px solid #a8842c;
+}
+
+tr.sticky td {
+  position: sticky;
+  background: var(--card);
+  z-index: 5;
+}
+
+.pin-table tr.sticky td:first-child {
+  position: sticky;
+}
+
+tr.sticky .sticky-toggle {
+  background: #6e1423;
+  border: 1px solid #a8842c;
+  box-shadow: 0 0 8px rgba(110, 20, 35, 0.7);
+}
+
 tr.done td {
   color: var(--text-muted);
 }

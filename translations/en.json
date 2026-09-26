@@ -28,6 +28,7 @@
   "empty_hint": "This list is empty — add your first item above.",
   "header_done": "Done",
   "done_tooltip": "Mark as done",
+  "sticky_tooltip": "Pin this item so it stays visible while scrolling",
   "mute_tooltip": "Suppress the alarm for this item",
   "materials_tooltip": "Materials added to the list — click to toggle",
   "header_item": "Item",

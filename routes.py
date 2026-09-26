@@ -262,6 +262,19 @@ def toggle_mute():
     return ("", 204)
 
 
+@routes.post("/toggle-sticky")
+def toggle_sticky():
+    """Pin or unpin one list item."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+    sticky = request.form.get("sticky") == "1"
+
+    if list_name and item_id.isdigit():
+        lists.set_sticky(list_name, int(item_id), sticky)
+
+    return ("", 204)
+
+
 @routes.post("/toggle-materials")
 def toggle_materials():
     """Mark whether one list item's materials were added."""
