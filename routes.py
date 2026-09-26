@@ -65,12 +65,20 @@ def show_collectables():
     job = request.args.get("job", "all")
     min_level = request.args.get("min", "").strip()
     max_level = request.args.get("max", "").strip()
+    min_scrips = request.args.get("minscrips", "").strip()
+    name_filter = request.args.get("q", "").strip()
+    shop = request.args.get("shop", "all")
+    if shop not in ("all", "scrip", "noscrip"):
+        shop = "all"
     collectables = lists.get_collectables(
         sort,
         direction,
         job,
         int(min_level) if min_level.isdigit() else None,
         int(max_level) if max_level.isdigit() else None,
+        int(min_scrips) if min_scrips.isdigit() else None,
+        shop,
+        name_filter,
     )
     return render_template(
         "collectables.html",
@@ -80,6 +88,9 @@ def show_collectables():
         job=job,
         min_level=min_level,
         max_level=max_level,
+        min_scrips=min_scrips,
+        shop=shop,
+        q=name_filter,
         **page_context(selected, "collectables"),
     )
 
@@ -93,14 +104,20 @@ def show_craftables():
     job = request.args.get("job", "all")
     min_level = request.args.get("min", "").strip()
     max_level = request.args.get("max", "").strip()
-    scrip_only = request.args.get("shop", "scrip") != "all"
+    min_scrips = request.args.get("minscrips", "").strip()
+    name_filter = request.args.get("q", "").strip()
+    shop = request.args.get("shop", "scrip")
+    if shop not in ("all", "scrip", "noscrip"):
+        shop = "scrip"
     craftables = lists.get_craftables(
         sort,
         direction,
         job,
         int(min_level) if min_level.isdigit() else None,
         int(max_level) if max_level.isdigit() else None,
-        scrip_only,
+        shop,
+        int(min_scrips) if min_scrips.isdigit() else None,
+        name_filter,
     )
     return render_template(
         "craftables.html",
@@ -110,7 +127,9 @@ def show_craftables():
         job=job,
         min_level=min_level,
         max_level=max_level,
-        shop="scrip" if scrip_only else "all",
+        min_scrips=min_scrips,
+        shop=shop,
+        q=name_filter,
         **page_context(selected, "craftables"),
     )
 

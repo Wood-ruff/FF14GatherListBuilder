@@ -227,7 +227,9 @@ def test_collectables_tab_lists_items(client, monkeypatch):
     page = client.get("/collectables").get_data(as_text=True)
     assert "Rarefied Windsbalm Bay Leaf" in page
     assert "16 / 23 / 38" in page
-    assert ">Living Memory</a> (8.7, 7.5)" in page
+    assert ">Living Memory</a>, <a" in page
+    assert 'href="https://ffxiv.consolegameswiki.com/wiki/Leynode_Mnemo"' in page
+    assert ">Leynode Mnemo</a> (8.7, 7.5)" in page
     assert 'src="/job-icons/3"' in page
     assert "Harvesting" in page
     assert 'class="node-timer"' in page

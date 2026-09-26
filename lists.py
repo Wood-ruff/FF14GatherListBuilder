@@ -242,25 +242,53 @@ NATURAL_DIRECTIONS = {
 }
 
 
-def get_collectables(sort_by="level", direction=None, job="all", min_level=None, max_level=None):
+def get_collectables(sort_by="level", direction=None, job="all", min_level=None, max_level=None, min_scrips=None, scrip_mode="all", name_filter=""):
     """Return gathering collectables filtered and sorted for display."""
     collectables = xivapi.fetch_collectables() or []
-    kept = filter_collectables(collectables, job, min_level, max_level)
+    kept = filter_collectables(collectables, job, min_level, max_level, min_scrips, scrip_mode, name_filter)
     return sort_collectables(kept, sort_by, direction)
 
 
-def filter_collectables(collectables, job, min_level, max_level):
-    """Keep only collectables matching the job and level filters."""
+def matches_name(entry, name_filter):
+    """Check whether the entry's name contains the search term, ignoring case."""
+    return name_filter.lower() in entry["name"].lower()
+
+
+def filter_collectables(collectables, job, min_level, max_level, min_scrips, scrip_mode, name_filter=""):
+    """Keep only collectables matching the name, job, level and scrip filters."""
     kept = []
     for collectable in collectables:
+        if not matches_name(collectable, name_filter):
+            continue
         if job in JOB_GROUPS and collectable["job"] not in JOB_GROUPS[job]:
             continue
         if min_level is not None and collectable["level"] < min_level:
             continue
         if max_level is not None and collectable["level"] > max_level:
             continue
+        if not has_enough_scrips(collectable, min_scrips):
+            continue
+        if not matches_scrip_mode(collectable, scrip_mode):
+            continue
         kept.append(collectable)
     return kept
+
+
+def matches_scrip_mode(collectable, scrip_mode):
+    """Check whether the item fits the scrip display mode."""
+    if scrip_mode == "scrip":
+        return collectable["scrips"] is not None
+    if scrip_mode == "noscrip":
+        return collectable["scrips"] is None
+    return True
+
+
+def has_enough_scrips(collectable, min_scrips):
+    """Check whether the item's lowest scrip reward reaches the filter value."""
+    if min_scrips is None:
+        return True
+    scrips = collectable["scrips"]
+    return scrips is not None and scrips["low"] >= min_scrips
 
 
 def sort_collectables(collectables, sort_by, direction):
@@ -298,10 +326,10 @@ def load_job_names():
     return JOB_NAME_CACHE
 
 
-def get_craftables(sort_by="level", direction=None, job="all", min_level=None, max_level=None, scrip_only=True):
+def get_craftables(sort_by="level", direction=None, job="all", min_level=None, max_level=None, scrip_mode="scrip", min_scrips=None, name_filter=""):
     """Return craftable collectables filtered and sorted for display."""
     craftables = [with_job_names(c) for c in xivapi.fetch_craftables() or []]
-    kept = filter_craftables(craftables, job, min_level, max_level, scrip_only)
+    kept = filter_craftables(craftables, job, min_level, max_level, scrip_mode, min_scrips, name_filter)
     return sort_craftables(kept, sort_by, direction)
 
 
@@ -319,10 +347,12 @@ def with_job_names(craftable):
     return dict(craftable, jobs=jobs)
 
 
-def filter_craftables(craftables, job, min_level, max_level, scrip_only):
-    """Keep only craftables matching the job, level and scrip filters."""
+def filter_craftables(craftables, job, min_level, max_level, scrip_mode, min_scrips, name_filter=""):
+    """Keep only craftables matching the name, job, level and scrip filters."""
     kept = []
     for craftable in craftables:
+        if not matches_name(craftable, name_filter):
+            continue
         jobs = [entry["name"].lower() for entry in craftable["jobs"]]
         if job != "all" and job not in jobs:
             continue
@@ -330,7 +360,9 @@ def filter_craftables(craftables, job, min_level, max_level, scrip_only):
             continue
         if max_level is not None and craftable["level"] > max_level:
             continue
-        if scrip_only and not craftable["scrips"]:
+        if not matches_scrip_mode(craftable, scrip_mode):
+            continue
+        if not has_enough_scrips(craftable, min_scrips):
             continue
         kept.append(craftable)
     return kept

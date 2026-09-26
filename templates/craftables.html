@@ -2,9 +2,9 @@
 
 {% macro sort_link(column, label) %}
 {% if sort == column %}
-<a href="/craftables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
+<a href="/craftables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}&minscrips={{ min_scrips }}&q={{ q | urlencode }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
 {% else %}
-<a href="/craftables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}">{{ label }}</a>
+<a href="/craftables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}&minscrips={{ min_scrips }}&q={{ q | urlencode }}">{{ label }}</a>
 {% endif %}
 {% endmacro %}
 
@@ -14,10 +14,14 @@
     <section class="card">
       <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
 
-      <form method="get" action="/craftables" class="add-form">
+      <form method="get" action="/craftables" class="filters">
         <input type="hidden" name="list" value="{{ selected }}">
         <input type="hidden" name="sort" value="{{ sort }}">
         <input type="hidden" name="dir" value="{{ dir }}">
+        <div class="filter-row">
+          <input name="q" class="name-filter" placeholder="{{ t('name_filter') }}" value="{{ q }}">
+        </div>
+        <div class="filter-row">
         <select name="job">
           <option value="all" {% if job == "all" %}selected{% endif %}>{{ t("all_jobs") }}</option>
           {% for craft in ["Carpenter", "Blacksmith", "Armorer", "Goldsmith", "Leatherworker", "Weaver", "Alchemist", "Culinarian"] %}
@@ -27,10 +31,13 @@
         <select name="shop">
           <option value="scrip" {% if shop == "scrip" %}selected{% endif %}>{{ t("scrip_only") }}</option>
           <option value="all" {% if shop == "all" %}selected{% endif %}>{{ t("all_collectables") }}</option>
+          <option value="noscrip" {% if shop == "noscrip" %}selected{% endif %}>{{ t("no_scrip_items") }}</option>
         </select>
         <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
         <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
+        <input name="minscrips" type="number" min="1" placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
         <button type="submit" class="secondary">{{ t("filter") }}</button>
+        </div>
       </form>
 
       {% if craftables %}

@@ -158,24 +158,72 @@ FAKE_CRAFTABLES = [
 def test_craftables_scrip_filter_is_on_by_default(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
     assert [c["name"] for c in lists.get_craftables()] == ["Tacos"]
-    assert len(lists.get_craftables(scrip_only=False)) == 2
+    assert len(lists.get_craftables(scrip_mode="all")) == 2
 
 
 def test_craftables_job_filter_uses_real_job_names(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
-    kept = lists.get_craftables(job="blacksmith", scrip_only=False)
+    kept = lists.get_craftables(job="blacksmith", scrip_mode="all")
     assert [c["name"] for c in kept] == ["Lumber"]
 
 
 def test_craft_types_are_mapped_to_job_names(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
-    tacos = lists.get_craftables(scrip_only=True)[0]
+    tacos = lists.get_craftables(scrip_mode="scrip")[0]
     assert tacos["jobs"] == [{"name": "Culinarian", "icon_id": 62015}]
+
+
+def test_collectables_min_scrips_filter(monkeypatch):
+    entries = [
+        {"game_id": 1, "name": "Rich", "level": 100, "stars": 0, "job": "Mining",
+         "scrips": {"low": 120, "mid": 134, "high": 144}},
+        {"game_id": 2, "name": "Poor", "level": 100, "stars": 0, "job": "Mining",
+         "scrips": {"low": 16, "mid": 23, "high": 38}},
+        {"game_id": 3, "name": "NoScrips", "level": 100, "stars": 0, "job": "Mining",
+         "scrips": None},
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: entries)
+    kept = lists.get_collectables(min_scrips=100)
+    assert [c["name"] for c in kept] == ["Rich"]
+
+
+def test_collectables_scrip_mode_filter(monkeypatch):
+    entries = [
+        {"game_id": 1, "name": "Rich", "level": 100, "stars": 0, "job": "Mining",
+         "scrips": {"low": 120, "mid": 134, "high": 144}},
+        {"game_id": 3, "name": "NoScrips", "level": 100, "stars": 0, "job": "Mining",
+         "scrips": None},
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: entries)
+    assert len(lists.get_collectables(scrip_mode="all")) == 2
+    assert [c["name"] for c in lists.get_collectables(scrip_mode="scrip")] == ["Rich"]
+    assert [c["name"] for c in lists.get_collectables(scrip_mode="noscrip")] == ["NoScrips"]
+
+
+def test_craftables_min_scrips_filter(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    kept = lists.get_craftables(min_scrips=20, scrip_mode="all")
+    assert kept == []
+    kept = lists.get_craftables(min_scrips=10, scrip_mode="all")
+    assert [c["name"] for c in kept] == ["Tacos"]
+
+
+def test_name_filter_matches_substrings(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    kept = lists.get_craftables(name_filter="umb", scrip_mode="all")
+    assert [c["name"] for c in kept] == ["Lumber"]
+    assert lists.get_craftables(name_filter="TACOS", scrip_mode="all")[0]["name"] == "Tacos"
+
+
+def test_craftables_no_scrip_mode(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    kept = lists.get_craftables(scrip_mode="noscrip")
+    assert [c["name"] for c in kept] == ["Lumber"]
 
 
 def test_craftables_level_filter(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
-    kept = lists.get_craftables(min_level=90, scrip_only=False)
+    kept = lists.get_craftables(min_level=90, scrip_mode="all")
     assert [c["name"] for c in kept] == ["Tacos"]
 
 

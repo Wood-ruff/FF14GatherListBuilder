@@ -2,9 +2,9 @@
 
 {% macro sort_link(column, label) %}
 {% if sort == column %}
-<a href="/collectables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
+<a href="/collectables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&minscrips={{ min_scrips }}&shop={{ shop }}&q={{ q | urlencode }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
 {% else %}
-<a href="/collectables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}">{{ label }}</a>
+<a href="/collectables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&minscrips={{ min_scrips }}&shop={{ shop }}&q={{ q | urlencode }}">{{ label }}</a>
 {% endif %}
 {% endmacro %}
 
@@ -14,19 +14,30 @@
     <section class="card">
       <h2>{{ t("tab_collectables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
 
-      <form method="get" action="/collectables" class="add-form">
+      <form method="get" action="/collectables" class="filters">
         <input type="hidden" name="list" value="{{ selected }}">
         <input type="hidden" name="sort" value="{{ sort }}">
         <input type="hidden" name="dir" value="{{ dir }}">
+        <div class="filter-row">
+          <input name="q" class="name-filter" placeholder="{{ t('name_filter') }}" value="{{ q }}">
+        </div>
+        <div class="filter-row">
         <select name="job">
           <option value="all" {% if job == "all" %}selected{% endif %}>{{ t("all_jobs") }}</option>
           <option value="miner" {% if job == "miner" %}selected{% endif %}>{{ t("job_miner") }}</option>
           <option value="botanist" {% if job == "botanist" %}selected{% endif %}>{{ t("job_botanist") }}</option>
           <option value="fisher" {% if job == "fisher" %}selected{% endif %}>{{ t("job_fisher") }}</option>
         </select>
+        <select name="shop">
+          <option value="all" {% if shop == "all" %}selected{% endif %}>{{ t("all_items") }}</option>
+          <option value="scrip" {% if shop == "scrip" %}selected{% endif %}>{{ t("scrip_only") }}</option>
+          <option value="noscrip" {% if shop == "noscrip" %}selected{% endif %}>{{ t("no_scrip_items") }}</option>
+        </select>
         <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
         <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
+        <input name="minscrips" type="number" min="1" placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
         <button type="submit" class="secondary">{{ t("filter") }}</button>
+        </div>
       </form>
 
       {% if collectables %}
@@ -70,7 +81,7 @@
             </td>
             <td>
               {% if collectable.zone %}
-              <a href="https://ffxiv.consolegameswiki.com/wiki/{{ collectable.zone | replace(" ", "_") | urlencode }}" target="_blank" rel="noopener">{{ collectable.zone }}</a>{% if collectable.x is not none %} ({{ collectable.x }}, {{ collectable.y }}){% endif %}
+              <a href="https://ffxiv.consolegameswiki.com/wiki/{{ collectable.zone | replace(" ", "_") | urlencode }}" target="_blank" rel="noopener">{{ collectable.zone }}</a>{% if collectable.aetheryte %}, <a href="https://ffxiv.consolegameswiki.com/wiki/{{ collectable.aetheryte | replace(" ", "_") | urlencode }}" target="_blank" rel="noopener">{{ collectable.aetheryte }}</a>{% endif %}{% if collectable.x is not none %} ({{ collectable.x }}, {{ collectable.y }}){% endif %}
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
             <td class="actions">

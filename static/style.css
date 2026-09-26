@@ -133,6 +133,23 @@ form {
   margin-bottom: 16px;
 }
 
+.filters {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.name-filter {
+  flex: none;
+  width: 50%;
+}
+
 .add-form .suggest-box {
   flex: 1;
 }
