@@ -3,7 +3,6 @@ from pathlib import Path
 
 TRANSLATIONS_DIR = Path(__file__).parent / "translations"
 FALLBACK_LANGUAGE = "en"
-LOADED = {}
 
 
 def all_texts(language):
@@ -13,16 +12,22 @@ def all_texts(language):
     return merged
 
 
+def write_template():
+    """Regenerate the template file so it always matches the english texts."""
+    english = load_language(FALLBACK_LANGUAGE)
+    template = {code: {"english": text, "translation": ""} for code, text in english.items()}
+    path = TRANSLATIONS_DIR / "_template.json"
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(template, file, indent=2, ensure_ascii=False)
+
+
 def load_language(language):
-    """Return all texts of one language file, remembering them per run."""
-    if language not in LOADED:
-        path = TRANSLATIONS_DIR / f"{language}.json"
-        if path.exists():
-            with open(path, encoding="utf-8") as file:
-                LOADED[language] = clean_texts(json.load(file))
-        else:
-            LOADED[language] = {}
-    return LOADED[language]
+    """Return all texts of one language file."""
+    path = TRANSLATIONS_DIR / f"{language}.json"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as file:
+        return clean_texts(json.load(file))
 
 
 def clean_texts(raw):

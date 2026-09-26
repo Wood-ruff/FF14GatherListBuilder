@@ -25,6 +25,7 @@ def test_german_covers_every_english_code():
 def test_template_covers_every_english_code_with_empty_translations():
     import json
 
+    translations.write_template()
     raw = json.loads((translations.TRANSLATIONS_DIR / "_template.json").read_text(encoding="utf-8"))
     english = translations.load_language("en")
     assert sorted(raw.keys()) == sorted(english.keys())
