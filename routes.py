@@ -11,6 +11,14 @@ import translations
 routes = Blueprint("routes", __name__)
 
 
+@routes.app_template_filter("shorten")
+def shorten(name):
+    """Cut a display name down to 24 characters with an ellipsis."""
+    if len(name) <= 24:
+        return name
+    return name[:23] + "…"
+
+
 @routes.app_context_processor
 def inject_translations():
     """Provide the translator and all texts to every template."""

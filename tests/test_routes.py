@@ -284,6 +284,15 @@ def test_import_rejects_broken_files(client):
     assert "broken" not in page
 
 
+def test_long_list_names_are_shortened_in_display_only(client):
+    long_name = "My Extremely Long Gathering List Name"
+    client.post("/create-list", data={"list": long_name, "next": "/"})
+    page = client.get(f"/?list={long_name}").get_data(as_text=True)
+    assert f'value="{long_name}"' in page
+    assert "My Extremely Long Gathe…" in page
+    assert f">{long_name}</h2>" not in page
+
+
 def test_create_list_makes_an_empty_list(client):
     response = client.post("/create-list", data={"list": "gather items", "next": "/"})
     assert response.status_code == 302

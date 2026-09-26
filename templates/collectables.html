@@ -13,7 +13,7 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>{{ t("tab_collectables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+        <h2 title="{{ selected }}">{{ t("tab_collectables") }}{% if selected %} → {{ selected | shorten }}{% endif %}</h2>
         <div class="switch-stack">
           <label class="switch">
             <input type="checkbox" id="marked-alarm-toggle">

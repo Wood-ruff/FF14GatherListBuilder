@@ -6,7 +6,7 @@
     {% if selected %}
     <section class="card">
       <div class="card-head">
-        <h2>{{ selected }}</h2>
+        <h2 title="{{ selected }}">{{ selected | shorten }}</h2>
         <div class="row">
           <form method="get" action="/export">
             <input type="hidden" name="list" value="{{ selected }}">

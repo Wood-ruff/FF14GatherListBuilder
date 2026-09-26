@@ -13,7 +13,7 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+        <h2 title="{{ selected }}">{{ t("tab_craftables") }}{% if selected %} → {{ selected | shorten }}{% endif %}</h2>
         <label class="switch">
           <input type="checkbox" id="pin-persist-toggle" data-store="craftables">
           {{ t("pins_persist") }}
