@@ -10,22 +10,15 @@ possible thanks to aggressive local caching.
 - **Gathering lists** — create as many as you like, add items with live name suggestions,
   amounts merge automatically, everything is stored as plain JSON on your machine.
 - **Recipe resolution** — craftable items get a "+ Materials" button that adds all base
-  materials (nested recipes included), with a green marker showing it's been done.
+  materials (nested recipes included).
 - **Live node timers** — timed items count down to their next spawn window in real seconds,
   with zone, in-game coordinates and the nearest aetheryte one click away.
 - **Alarms** — a sound (pick one, or drop your own into `static/alarms/`) when a node on your
-  list comes up, working even in background tabs; mutable per item, silent for done items.
-- **Progress tracking** — done-checkboxes, item pinning that keeps rows visible while
-  scrolling, and automatic grouping: craftables on top, materials middle, crystals bottom.
-- **Collectables browsers** — two extra tabs listing every gatherable and craftable
-  collectable with job, level, scrip rewards, node position and timers; filter by name, job,
-  level, scrips; one click adds them (with materials) to your list, and gatherables can be
-  alarm-marked individually.
+  list comes up, mutable per item, silent for done items.
+- **Progress tracking** — done-checkboxes, item pinning, and automatic grouping: craftables on top, materials middle, crystals bottom.
 - **Sharing** — export a list as a JSON file, import someone else's; all game data is
   re-fetched locally, in your language.
-- **Languages** — EN/DE/FR/JA game data with per-item re-localization when you switch, and a
-  translatable interface (EN and DE included, template for more in `translations/`).
-- **Your look** — random background images per tab from `static/backgrounds/`.
+- **Your look** — random background images from `static/backgrounds/`.
 
 ## Getting it running
 
