@@ -13,6 +13,8 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.RECIPES.clear()
     xivapi.SUGGESTIONS.clear()
     xivapi.GATHERING.clear()
+    xivapi.COLLECTABLES.clear()
+    xivapi.CRAFTABLES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
 
@@ -340,6 +342,214 @@ def test_gathering_network_error_is_not_cached(monkeypatch):
     monkeypatch.setattr("requests.get", broken_get)
     assert xivapi.fetch_gathering(43930) is None
     assert "gathering:43930" not in item_cache.load_cache()
+
+
+COLLECTABLE_ITEMS_PAGE = {"results": [
+    {
+        "row_id": 10202,
+        "fields": {
+            "Item": {"row_id": 43930, "fields": {"Name": "Rarefied Windsbalm Bay Leaf"}},
+            "GatheringItemLevel": {"fields": {"GatheringItemLevel": 100, "Stars": 2}},
+        },
+    },
+]}
+
+SHOP_PAGE = {"results": [
+    {
+        "row_id": 1,
+        "fields": {
+            "Item": {"row_id": 43930, "fields": {}},
+            "CollectablesShopRewardScrip": {"fields": {"LowReward": 16, "MidReward": 23, "HighReward": 38}},
+        },
+    },
+]}
+
+BASES_PAGE = {"results": [
+    {
+        "row_id": 1029,
+        "fields": {
+            "GatheringType": {"row_id": 3, "fields": {"Name": "Harvesting"}},
+            "Item": [
+                {"row_id": 10202, "fields": {"IsHidden": False}},
+                {"row_id": 0, "fields": {"IsHidden": False}},
+            ],
+        },
+    },
+]}
+
+POINTS_PAGE = {"results": [
+    {
+        "row_id": 34989,
+        "fields": {
+            "GatheringPointBase": {"row_id": 1029, "fields": {"GatheringLevel": 100}},
+            "TerritoryType": {"fields": {
+                "PlaceName": {"fields": {"Name": "Living Memory"}},
+                "Aetheryte": {"row_id": 213, "fields": {"PlaceName": {"fields": {"Name": "Leynode Mnemo"}}}},
+                "Map": {"fields": {"SizeFactor": 100, "OffsetX": 0, "OffsetY": 0}},
+            }},
+        },
+    },
+]}
+
+EXPORTED_ROWS = {"rows": [{"row_id": 1029, "fields": {"X": -637.213, "Y": -699.634}}]}
+
+TRANSIENT_BATCH = {"rows": [{
+    "row_id": 34989,
+    "fields": {
+        "EphemeralStartTime": 65535,
+        "EphemeralEndTime": 65535,
+        "GatheringRarePopTimeTable": {
+            "fields": {"StartTime": [1000, 2200, 65535], "Duration": [160, 160, 0]},
+        },
+    },
+}]}
+
+GTYPE_ROWS = {"rows": [{"row_id": 3, "fields": {"IconMain": {"path": "ui/icon/060000/060432.tex"}}}]}
+
+
+def collectables_api(url, params=None, **kwargs):
+    if url == xivapi.ASSET_URL:
+        return FakeResponse(content=b"job-icon")
+    if "sheet/ExportedGatheringPoint" in url:
+        return FakeResponse(EXPORTED_ROWS)
+    if "sheet/GatheringPointTransient" in url:
+        return FakeResponse(TRANSIENT_BATCH)
+    if "sheet/GatheringType" in url:
+        return FakeResponse(GTYPE_ROWS)
+    pages = {
+        "GatheringItem": COLLECTABLE_ITEMS_PAGE,
+        "CollectablesShopItem": SHOP_PAGE,
+        "GatheringPointBase": BASES_PAGE,
+        "GatheringPoint": POINTS_PAGE,
+    }
+    return FakeResponse(pages[params["sheets"]])
+
+
+def test_fetch_collectables_builds_full_entries(monkeypatch):
+    monkeypatch.setattr("requests.get", collectables_api)
+    assert xivapi.fetch_collectables() == [{
+        "game_id": 43930,
+        "name": "Rarefied Windsbalm Bay Leaf",
+        "level": 100,
+        "stars": 2,
+        "scrips": {"low": 16, "mid": 23, "high": 38},
+        "job": "Harvesting",
+        "job_id": 3,
+        "zone": "Living Memory",
+        "aetheryte": "Leynode Mnemo",
+        "x": 8.7,
+        "y": 7.5,
+        "times": [{"start": 600, "duration": 120}, {"start": 1320, "duration": 120}],
+        "timed": True,
+    }]
+    assert item_cache.has_icon("jobtype_3")
+
+
+def test_collectables_build_stores_gathering_markers(monkeypatch):
+    monkeypatch.setattr("requests.get", collectables_api)
+    xivapi.fetch_collectables()
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    info = xivapi.fetch_gathering(43930)
+    assert info["timed"] is True
+    assert info["zone"] == "Living Memory"
+    assert info["aetheryte"] == "Leynode Mnemo"
+
+
+def test_fetch_collectables_is_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", collectables_api)
+    xivapi.fetch_collectables()
+    assert item_cache.load_cache()["collectables:en"]["type"] == "collectables"
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.COLLECTABLES.clear()
+    assert xivapi.fetch_collectables()[0]["zone"] == "Living Memory"
+
+
+RECIPE_PAGE = {"results": [
+    {
+        "row_id": 3603,
+        "fields": {
+            "ItemResult": {"row_id": 43954, "fields": {"Name": "Rarefied Tacos de Carne Asada"}},
+            "CraftType": {"row_id": 7, "fields": {"Name": "Cooking"}},
+            "RecipeLevelTable": {"fields": {"ClassJobLevel": 100, "Stars": 1}},
+        },
+    },
+    {
+        "row_id": 3604,
+        "fields": {
+            "ItemResult": {"row_id": 31100, "fields": {"Name": "Oddly Specific Lumber"}},
+            "CraftType": {"row_id": 0, "fields": {"Name": "Woodworking"}},
+            "RecipeLevelTable": {"fields": {"ClassJobLevel": 80, "Stars": 0}},
+        },
+    },
+    {
+        "row_id": 3605,
+        "fields": {
+            "ItemResult": {"row_id": 31100, "fields": {"Name": "Oddly Specific Lumber"}},
+            "CraftType": {"row_id": 1, "fields": {"Name": "Smithing"}},
+            "RecipeLevelTable": {"fields": {"ClassJobLevel": 80, "Stars": 0}},
+        },
+    },
+]}
+
+CRAFT_SHOP_PAGE = {"results": [
+    {
+        "row_id": 2,
+        "fields": {
+            "Item": {"row_id": 43954, "fields": {}},
+            "CollectablesShopRewardScrip": {"fields": {"LowReward": 12, "MidReward": 18, "HighReward": 27}},
+        },
+    },
+]}
+
+
+def craftables_api(url, params=None, **kwargs):
+    if params["sheets"] == "Recipe":
+        return FakeResponse(RECIPE_PAGE)
+    return FakeResponse(CRAFT_SHOP_PAGE)
+
+
+def test_fetch_craftables_groups_jobs_per_item(monkeypatch):
+    monkeypatch.setattr("requests.get", craftables_api)
+    craftables = xivapi.fetch_craftables()
+    assert craftables == [
+        {
+            "game_id": 43954,
+            "name": "Rarefied Tacos de Carne Asada",
+            "level": 100,
+            "stars": 1,
+            "jobs": ["Cooking"],
+            "scrips": {"low": 12, "mid": 18, "high": 27},
+        },
+        {
+            "game_id": 31100,
+            "name": "Oddly Specific Lumber",
+            "level": 80,
+            "stars": 0,
+            "jobs": ["Woodworking", "Smithing"],
+            "scrips": None,
+        },
+    ]
+
+
+def test_fetch_craftables_is_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", craftables_api)
+    xivapi.fetch_craftables()
+    assert item_cache.load_cache()["craftables:en"]["type"] == "craftables"
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.CRAFTABLES.clear()
+    assert len(xivapi.fetch_craftables()) == 2
 
 
 def test_fetch_recipe_for_uncraftable_item(monkeypatch):

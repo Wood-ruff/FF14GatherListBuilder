@@ -9,6 +9,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_item", lambda name: None)
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: None)
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
+    monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 
@@ -73,6 +74,7 @@ def test_timed_item_shows_node_timer(client, monkeypatch):
     client.post("/add", data={"list": "Demo", "item": "Bay Leaf", "amount": "1"})
     page = client.get("/?list=Demo").get_data(as_text=True)
     assert 'class="node-timer"' in page
+    assert 'data-alarm="1"' in page
     assert 'data-zone="Living Memory"' in page
     assert 'data-aetheryte="Leynode Mnemo"' in page
 
@@ -123,6 +125,34 @@ def test_icon_route_missing_icon_is_404(client, tmp_path, monkeypatch):
     assert client.get("/icons/999").status_code == 404
 
 
+def test_create_list_makes_an_empty_list(client):
+    response = client.post("/create-list", data={"list": "gather items", "next": "/"})
+    assert response.status_code == 302
+    page = client.get("/").get_data(as_text=True)
+    assert '<option value="gather items"' in page
+
+
+def test_create_list_from_collectables_returns_there(client, monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
+    response = client.post("/create-list", data={"list": "Demo", "next": "/collectables"})
+    assert response.headers["Location"].startswith("/collectables")
+
+
+def test_create_list_rejects_bad_names(client):
+    client.post("/create-list", data={"list": "../evil", "next": "/"})
+    page = client.get("/").get_data(as_text=True)
+    assert "evil" not in page
+
+
+def test_clear_list_empties_but_keeps_the_list(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "20"})
+    response = client.post("/clear-list", data={"list": "Demo"})
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Iron Ore" not in page
+    assert '<option value="Demo"' in page
+
+
 def test_delete_list_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "20"})
     response = client.post("/delete-list", data={"list": "Demo"})
@@ -141,12 +171,120 @@ def test_suggest_returns_json_names(client, monkeypatch):
 def test_banner_shows_when_api_is_unreachable(client, monkeypatch):
     monkeypatch.setattr("lists.last_lookup_failed", lambda: True)
     page = client.get("/").get_data(as_text=True)
-    assert "Could not reach xivapi" in page
+    assert 'class="banner"' in page
 
 
 def test_no_banner_when_api_works(client):
     page = client.get("/").get_data(as_text=True)
-    assert "Could not reach xivapi" not in page
+    assert 'class="banner"' not in page
+
+
+def test_collectables_tab_lists_items(client, monkeypatch):
+    collectables = [{
+        "game_id": 43930, "name": "Rarefied Windsbalm Bay Leaf", "level": 100, "stars": 2,
+        "scrips": {"low": 16, "mid": 23, "high": 38},
+        "job": "Harvesting", "job_id": 3, "zone": "Living Memory", "aetheryte": "Leynode Mnemo",
+        "x": 8.7, "y": 7.5, "times": [{"start": 600, "duration": 120}], "timed": True,
+    }]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: collectables)
+    page = client.get("/collectables").get_data(as_text=True)
+    assert "Rarefied Windsbalm Bay Leaf" in page
+    assert "16 / 23 / 38" in page
+    assert ">Living Memory</a> (8.7, 7.5)" in page
+    assert 'src="/job-icons/3"' in page
+    assert "Harvesting" in page
+    assert 'class="node-timer"' in page
+    assert "data-alarm" not in page
+    assert 'href="https://www.garlandtools.org/db/#item/43930"' in page
+    assert 'href="https://ffxiv.consolegameswiki.com/wiki/Living_Memory"' in page
+
+
+def test_list_picker_is_on_both_tabs(client, monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
+    main_page = client.get("/").get_data(as_text=True)
+    collectables_page = client.get("/collectables").get_data(as_text=True)
+    assert 'placeholder="New list name"' in main_page
+    assert 'placeholder="New list name"' in collectables_page
+
+
+def test_collectables_filters_via_query(client, monkeypatch):
+    collectables = [
+        {"game_id": 1, "name": "Ore Thing", "level": 90, "stars": 0, "job": "Mining",
+         "job_id": 0, "zone": None, "x": None, "y": None, "scrips": None},
+        {"game_id": 2, "name": "Leafy Thing", "level": 90, "stars": 0, "job": "Logging",
+         "job_id": 2, "zone": None, "x": None, "y": None, "scrips": None},
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: collectables)
+    page = client.get("/collectables?job=miner").get_data(as_text=True)
+    assert "Ore Thing" in page
+    assert "Leafy Thing" not in page
+    assert 'src="/job-icons/0"' in page
+
+
+def test_collectable_can_be_added_to_list(client, monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
+    response = client.post(
+        "/collectables/add",
+        data={"list": "Demo", "item": "Rarefied Manasilver Sand", "amount": "3", "sort": "level"},
+    )
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Rarefied Manasilver Sand" in page
+
+
+def test_craftables_tab_lists_items(client, monkeypatch):
+    craftables = [{
+        "game_id": 43954, "name": "Rarefied Tacos de Carne Asada", "level": 100, "stars": 1,
+        "jobs": ["Cooking"], "scrips": {"low": 12, "mid": 18, "high": 27},
+    }]
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
+    page = client.get("/craftables").get_data(as_text=True)
+    assert "Rarefied Tacos de Carne Asada" in page
+    assert "Culinarian" in page
+    assert 'src="/craft-icons/62015"' in page
+    assert "12 / 18 / 27" in page
+    assert 'href="https://www.garlandtools.org/db/#item/43954"' in page
+
+
+def test_craftable_add_puts_item_and_materials_in_list(client, monkeypatch):
+    recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}
+    recipes = {"rarefied tacos": recipe}
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipes.get(name.lower()))
+    monkeypatch.setattr("routes.run_in_background", lambda task: task())
+    response = client.post(
+        "/craftables/add", data={"list": "Demo", "item": "Rarefied Tacos", "amount": "2"}
+    )
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Rarefied Tacos" in page
+    assert "Iron Ore" in page
+
+
+def test_run_in_background_executes_the_task():
+    import threading
+
+    import routes
+
+    done = threading.Event()
+    routes.run_in_background(done.set)
+    assert done.wait(timeout=5)
+
+
+def test_pending_counter_returns_to_zero(client):
+    import threading
+    import time
+
+    import routes
+
+    done = threading.Event()
+    routes.run_in_background(done.wait)
+    assert client.get("/pending").get_json() == 1
+    done.set()
+    for _ in range(50):
+        if client.get("/pending").get_json() == 0:
+            break
+        time.sleep(0.1)
+    assert client.get("/pending").get_json() == 0
 
 
 def test_alarm_dropdown_is_rendered(client):
@@ -160,6 +298,17 @@ def test_language_can_be_changed_via_post(client):
     assert response.status_code == 302
     page = client.get("/").get_data(as_text=True)
     assert '<option value="de" selected>' in page
+
+
+def test_ui_texts_follow_the_language(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "New list name" in page
+    client.post("/language", data={"language": "de", "list": ""})
+    page = client.get("/").get_data(as_text=True)
+    assert "Name der neuen Liste" in page
+    assert "Öffnen" in page
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Hinzufügen" in page
 
 
 def test_clear_cache_via_post(client, monkeypatch):

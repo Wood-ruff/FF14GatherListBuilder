@@ -20,12 +20,23 @@ def get_fresh_result(name, kind="item"):
 
 def store_result(name, result, kind="item"):
     """Save one result of the given kind with today's date in the cache file."""
+    store_results({name: result}, kind)
+
+
+def store_results(results, kind):
+    """Save many results of one kind with today's date in a single write."""
     cache = load_cache()
-    cache[cache_key(name, kind)] = {
-        "fetchdate": date.today().isoformat(),
-        "type": kind,
-        "result": result,
-    }
+    for name, result in results.items():
+        cache[cache_key(name, kind)] = {
+            "fetchdate": date.today().isoformat(),
+            "type": kind,
+            "result": result,
+        }
+    save_cache(cache)
+
+
+def save_cache(cache):
+    """Write the full cache contents to the cache file."""
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(CACHE_FILE, "w", encoding="utf-8") as file:
         json.dump(cache, file, indent=2)

@@ -1,0 +1,10 @@
+{
+  "Woodworking": {"name": "Carpenter", "icon_id": 62008},
+  "Smithing": {"name": "Blacksmith", "icon_id": 62009},
+  "Armorcraft": {"name": "Armorer", "icon_id": 62010},
+  "Goldsmithing": {"name": "Goldsmith", "icon_id": 62011},
+  "Leatherworking": {"name": "Leatherworker", "icon_id": 62012},
+  "Clothcraft": {"name": "Weaver", "icon_id": 62013},
+  "Alchemy": {"name": "Alchemist", "icon_id": 62014},
+  "Cooking": {"name": "Culinarian", "icon_id": 62015}
+}

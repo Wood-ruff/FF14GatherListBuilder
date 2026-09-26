@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% macro sort_link(column, label) %}
+{% if sort == column %}
+<a href="/craftables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
+{% else %}
+<a href="/craftables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}&shop={{ shop }}">{{ label }}</a>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+    {% with picker_action = "/craftables" %}{% include "_list_picker.html" %}{% endwith %}
+
+    <section class="card">
+      <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+
+      <form method="get" action="/craftables" class="add-form">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <input type="hidden" name="dir" value="{{ dir }}">
+        <select name="job">
+          <option value="all" {% if job == "all" %}selected{% endif %}>{{ t("all_jobs") }}</option>
+          {% for craft in ["Carpenter", "Blacksmith", "Armorer", "Goldsmith", "Leatherworker", "Weaver", "Alchemist", "Culinarian"] %}
+          <option value="{{ craft | lower }}" {% if job == craft | lower %}selected{% endif %}>{{ craft }}</option>
+          {% endfor %}
+        </select>
+        <select name="shop">
+          <option value="scrip" {% if shop == "scrip" %}selected{% endif %}>{{ t("scrip_only") }}</option>
+          <option value="all" {% if shop == "all" %}selected{% endif %}>{{ t("all_collectables") }}</option>
+        </select>
+        <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
+        <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
+        <button type="submit" class="secondary">{{ t("filter") }}</button>
+      </form>
+
+      {% if craftables %}
+      <table>
+        <thead>
+          <tr>
+            <th>{{ sort_link("name", t("header_item")) }}</th>
+            <th>{{ sort_link("job", t("header_jobs")) }}</th>
+            <th class="num">{{ sort_link("level", t("header_level")) }}</th>
+            <th class="num">{{ sort_link("stars", t("header_stars")) }}</th>
+            <th class="num">{{ sort_link("scrips", t("header_scrips")) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for craftable in craftables %}
+          <tr>
+            <td>
+              <a href="https://www.garlandtools.org/db/#item/{{ craftable.game_id }}" target="_blank" rel="noopener">{{ craftable.name }}</a>
+            </td>
+            <td>
+              {% for entry in craftable.jobs %}
+              <span class="job-entry">
+                {% if entry.icon_id is not none %}<img class="icon" src="/craft-icons/{{ entry.icon_id }}" alt="">{% endif %}
+                {{ entry.name }}
+              </span>
+              {% endfor %}
+            </td>
+            <td class="num">{{ craftable.level }}</td>
+            <td class="num">{{ "★" * craftable.stars }}</td>
+            <td class="num">
+              {% if craftable.scrips %}
+              {{ craftable.scrips.low }} / {{ craftable.scrips.mid }} / {{ craftable.scrips.high }}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="actions">
+              <form method="post" action="/craftables/add" class="background-add" data-done-message="{{ t('toast_adding_materials') }}">
+                <input type="hidden" name="list" value="{{ selected }}">
+                <input type="hidden" name="item" value="{{ craftable.name }}">
+                <input name="amount" type="number" min="1" value="1">
+                <button type="submit" class="secondary" {% if not selected %}disabled{% endif %}>{{ t("add_with_materials") }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">{{ t("no_matches") }}</p>
+      {% endif %}
+    </section>
+{% endblock %}

@@ -5,7 +5,7 @@ let toastTimer = null;
 function setupCopyName(element) {
   element.addEventListener("click", function () {
     navigator.clipboard.writeText(element.dataset.name).then(function () {
-      showToast("Item copied to clipboard — paste in chat and press Tab for a link");
+      showToast(msg("toast_copied", "Item copied to clipboard"));
     });
   });
 }

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FF14 Gather List Builder</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+</head>
+<body>
+  <header>
+    <h1>Gather List Builder</h1>
+    <div class="top-left">
+      <select id="alarm-toggle">
+        <option value="off">{{ t("alarm_off") }}</option>
+        <option value="on">{{ t("alarm_on") }}</option>
+      </select>
+      <select id="alarm-sound">
+        {% for sound in alarm_sounds %}
+        <option value="{{ sound }}" {% if sound == "chime.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" id="alarm-test" class="secondary" title="{{ t('alarm_test_title') }}">{{ t("alarm_test") }}</button>
+    </div>
+    <div class="top-right">
+      <form method="post" action="/language">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <select name="language">
+          {% for lang in languages %}
+          <option value="{{ lang }}" {% if lang == language %}selected{% endif %}>{{ lang | upper }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="secondary">{{ t("language_set") }}</button>
+      </form>
+      <form method="post" action="/clear-cache" onsubmit="return confirm('{{ t('clear_caches_confirm') }}')">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <button type="submit" class="danger">{{ t("clear_caches") }}</button>
+      </form>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <a href="/?list={{ selected }}" class="tab {% if active_tab == 'lists' %}active{% endif %}">{{ t("tab_lists") }}</a>
+    <a href="/collectables?list={{ selected }}" class="tab {% if active_tab == 'collectables' %}active{% endif %}">{{ t("tab_collectables") }}</a>
+    <a href="/craftables?list={{ selected }}" class="tab {% if active_tab == 'craftables' %}active{% endif %}">{{ t("tab_craftables") }}</a>
+  </nav>
+
+  <main>
+    {% if api_failed %}
+    <div class="banner">{{ t("api_banner") }}</div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <h3 id="modal-title"></h3>
+      <p id="modal-body"></p>
+      <button type="button" id="modal-close" class="secondary">{{ t("modal_close") }}</button>
+    </div>
+  </div>
+
+  <script>
+    window.MESSAGES = {{ ui_messages | tojson }};
+    window.msg = function (code, fallback) { return window.MESSAGES[code] || fallback; };
+  </script>
+  <script src="{{ url_for('static', filename='suggest.js') }}"></script>
+  <script src="{{ url_for('static', filename='copy.js') }}"></script>
+  <script src="{{ url_for('static', filename='ajax-add.js') }}"></script>
+  <script src="{{ url_for('static', filename='timer.js') }}"></script>
+  {% block scripts %}{% endblock %}
+  <script src="{{ url_for('static', filename='pending.js') }}"></script>
+</body>
+</html>

@@ -1,120 +1,71 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FF14 Gather List Builder</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-  <header>
-    <h1>Gather List Builder</h1>
-    <div class="top-left">
-      <select id="alarm-toggle">
-        <option value="off">Alarm off</option>
-        <option value="on">Alarm on</option>
-      </select>
-      <select id="alarm-sound">
-        {% for sound in alarm_sounds %}
-        <option value="{{ sound }}" {% if sound == "chime.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
-        {% endfor %}
-      </select>
-      <button type="button" id="alarm-test" class="secondary" title="Play the selected alarm">Test</button>
-    </div>
-    <div class="top-right">
-      <form method="post" action="/language">
-        <input type="hidden" name="list" value="{{ selected }}">
-        <select name="language">
-          {% for lang in languages %}
-          <option value="{{ lang }}" {% if lang == language %}selected{% endif %}>{{ lang | upper }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="secondary">Set</button>
-      </form>
-      <form method="post" action="/clear-cache" onsubmit="return confirm('Clear all cached item data and icons?')">
-        <input type="hidden" name="list" value="{{ selected }}">
-        <button type="submit" class="danger">Clear caches</button>
-      </form>
-    </div>
-  </header>
+{% extends "base.html" %}
 
-  <main>
-    {% if api_failed %}
-    <div class="banner">
-      Could not reach xivapi — the last lookup failed, items were added without game data.
-      Check your internet connection and firewall.
-    </div>
-    {% endif %}
-
-    <section class="card">
-      <h2>Lists</h2>
-      <div class="row">
-        <form method="get" action="/">
-          <select name="list">
-            {% for name in list_names %}
-            <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-          </select>
-          <button type="submit">Open</button>
-        </form>
-        <form method="get" action="/">
-          <input name="list" placeholder="New list name">
-          <button type="submit" class="secondary">Create</button>
-        </form>
-      </div>
-    </section>
+{% block content %}
+    {% with picker_action = "/" %}{% include "_list_picker.html" %}{% endwith %}
 
     {% if selected %}
     <section class="card">
       <div class="card-head">
         <h2>{{ selected }}</h2>
-        <form method="post" action="/delete-list">
-          <input type="hidden" name="list" value="{{ selected }}">
-          <button type="submit" class="danger">Delete list</button>
-        </form>
+        <div class="row">
+          <form method="post" action="/clear-list" onsubmit="return confirm('{{ t('empty_list_confirm') }}')">
+            <input type="hidden" name="list" value="{{ selected }}">
+            <button type="submit" class="danger">{{ t("empty_list_button") }}</button>
+          </form>
+          <form method="post" action="/delete-list">
+            <input type="hidden" name="list" value="{{ selected }}">
+            <button type="submit" class="danger">{{ t("delete_list") }}</button>
+          </form>
+        </div>
       </div>
 
       <form method="post" action="/add" class="add-form">
         <input type="hidden" name="list" value="{{ selected }}">
         <div class="suggest-box">
-          <input name="item" placeholder="Item name" required autocomplete="off">
-          <button type="button" class="suggest-toggle" aria-label="Show suggestions">&#9662;</button>
+          <input name="item" placeholder="{{ t('item_placeholder') }}" required autocomplete="off">
+          <button type="button" class="suggest-toggle" aria-label="{{ t('suggest_toggle_title') }}">&#9662;</button>
           <div class="suggest-list" hidden></div>
         </div>
-        <input name="amount" type="number" min="1" placeholder="Amount" required>
-        <button type="submit">Add</button>
+        <input name="amount" type="number" min="1" placeholder="{{ t('amount_placeholder') }}" required>
+        <button type="submit">{{ t("add") }}</button>
       </form>
 
       <form method="post" action="/craft" class="add-form">
         <input type="hidden" name="list" value="{{ selected }}">
         <div class="suggest-box">
-          <input name="item" placeholder="Craftable item — adds its base materials" required autocomplete="off">
-          <button type="button" class="suggest-toggle" aria-label="Show suggestions">&#9662;</button>
+          <input name="item" placeholder="{{ t('craft_placeholder') }}" required autocomplete="off">
+          <button type="button" class="suggest-toggle" aria-label="{{ t('suggest_toggle_title') }}">&#9662;</button>
           <div class="suggest-list" hidden></div>
         </div>
-        <input name="amount" type="number" min="1" placeholder="Amount" required>
-        <button type="submit" class="secondary">Add materials</button>
+        <input name="amount" type="number" min="1" placeholder="{{ t('amount_placeholder') }}" required>
+        <button type="submit" class="secondary">{{ t("add_materials") }}</button>
       </form>
 
       {% if items %}
       <table>
         <thead>
-          <tr><th>Item</th><th class="num">Amount</th><th class="num">Node up</th><th class="num">Game ID</th><th></th></tr>
+          <tr>
+            <th>{{ t("header_item") }}</th>
+            <th class="num">{{ t("header_amount") }}</th>
+            <th class="num">{{ t("header_node") }}</th>
+            <th class="num">{{ t("header_game_id") }}</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           {% for item in items %}
           <tr>
             <td>
               {% if item.game_id %}<img class="icon" src="/icons/{{ item.game_id }}" alt="">{% endif %}
-              <span class="copy-name" data-name="{{ item.name }}" title="Copy item name — paste in the game chat and press Tab to make a link">{{ item.name }}</span>
+              <span class="copy-name" data-name="{{ item.name }}" title="{{ t('copy_tooltip') }}">{{ item.name }}</span>
             </td>
             <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
             <td class="num">
               {% if item.gathering and item.gathering.timed %}
-              <span class="node-timer" data-times='{{ item.gathering.times | tojson }}'
+              <span class="node-timer" data-alarm="1" data-times='{{ item.gathering.times | tojson }}'
                     data-zone="{{ item.gathering.zone or "?" }}"
                     data-aetheryte="{{ item.gathering.aetheryte or "" }}"
-                    title="Click for zone and aetheryte">…</span>
+                    title="{{ t('timer_tooltip') }}">…</span>
               {% else %}
               <span class="muted">—</span>
               {% endif %}
@@ -127,8 +78,8 @@
               {% endif %}
             </td>
             <td class="actions">
-              <button form="edit-{{ item.id }}" class="secondary">Save</button>
-              <button form="delete-{{ item.id }}" class="danger">Delete</button>
+              <button form="edit-{{ item.id }}" class="secondary">{{ t("save") }}</button>
+              <button form="delete-{{ item.id }}" class="danger">{{ t("delete") }}</button>
             </td>
           </tr>
           {% endfor %}
@@ -146,24 +97,12 @@
       </form>
       {% endfor %}
       {% else %}
-      <p class="muted">This list is empty — add your first item above.</p>
+      <p class="muted">{{ t("empty_hint") }}</p>
       {% endif %}
     </section>
     {% endif %}
-  </main>
+{% endblock %}
 
-  <div id="toast" class="toast"></div>
-
-  <div id="modal" class="modal" hidden>
-    <div class="modal-box">
-      <h3 id="modal-title"></h3>
-      <p id="modal-body"></p>
-      <button type="button" id="modal-close" class="secondary">Close</button>
-    </div>
-  </div>
-
-  <script src="{{ url_for('static', filename='suggest.js') }}"></script>
-  <script src="{{ url_for('static', filename='copy.js') }}"></script>
-  <script src="{{ url_for('static', filename='timer.js') }}"></script>
-</body>
-</html>
+{% block scripts %}
+<script>window.reloadWhenAddsFinish = true;</script>
+{% endblock %}

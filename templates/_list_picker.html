@@ -1,0 +1,18 @@
+<section class="card">
+  <h2>{{ t("lists_heading") }}</h2>
+  <div class="row">
+    <form method="get" action="{{ picker_action }}">
+      <select name="list">
+        {% for name in list_names %}
+        <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">{{ t("open") }}</button>
+    </form>
+    <form method="post" action="/create-list">
+      <input type="hidden" name="next" value="{{ picker_action }}">
+      <input name="list" placeholder="{{ t('new_list_placeholder') }}" required>
+      <button type="submit" class="secondary">{{ t("create") }}</button>
+    </form>
+  </div>
+</section>

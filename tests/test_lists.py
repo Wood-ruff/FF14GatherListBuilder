@@ -27,17 +27,22 @@ def fake_xivapi(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_item", lambda name: FAKE_ITEMS.get(name.lower()))
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: FAKE_RECIPES.get(name.lower()))
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
+    monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
 
 
 def test_valid_list_names():
     assert lists.is_valid_list_name("My List_1-a")
     assert lists.is_valid_list_name("a")
+    assert lists.is_valid_list_name("Kräuter für Montag")
+    assert lists.is_valid_list_name("Léo's Liste")
 
 
 def test_invalid_list_names():
     assert not lists.is_valid_list_name("")
     assert not lists.is_valid_list_name("../evil")
     assert not lists.is_valid_list_name("name/with/slashes")
+    assert not lists.is_valid_list_name("name\\with\\backslashes")
+    assert not lists.is_valid_list_name("dots.are.out")
     assert not lists.is_valid_list_name("x" * 51)
 
 
@@ -102,6 +107,86 @@ def test_short_suggestion_queries_are_not_searched(monkeypatch):
     assert lists.suggest_item_names("ir") == []
     assert lists.suggest_item_names("  a ") == []
     assert calls == []
+
+
+FAKE_COLLECTABLES = [
+    {"game_id": 1, "name": "Beta", "level": 90, "stars": 1, "job": "Quarrying"},
+    {"game_id": 2, "name": "Alpha", "level": 100, "stars": 0, "job": "Harvesting"},
+    {"game_id": 3, "name": "Gamma", "level": 50, "stars": 0, "job": "Logging"},
+]
+
+
+def test_collectables_are_sorted(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: FAKE_COLLECTABLES)
+    assert lists.get_collectables("level")[0]["name"] == "Alpha"
+    assert lists.get_collectables("stars")[0]["name"] == "Beta"
+    assert lists.get_collectables("name")[0]["name"] == "Alpha"
+
+
+def test_collectables_sort_direction_can_be_flipped(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: FAKE_COLLECTABLES)
+    assert lists.get_collectables("level", "asc")[0]["name"] == "Gamma"
+    assert lists.get_collectables("name", "desc")[0]["name"] == "Gamma"
+
+
+def test_collectables_job_filter_groups_by_class(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: FAKE_COLLECTABLES)
+    miner = lists.get_collectables(job="miner")
+    botanist = lists.get_collectables(job="botanist")
+    assert [c["name"] for c in miner] == ["Beta"]
+    assert sorted(c["name"] for c in botanist) == ["Alpha", "Gamma"]
+
+
+def test_collectables_level_filter(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: FAKE_COLLECTABLES)
+    kept = lists.get_collectables(min_level=60, max_level=95)
+    assert [c["name"] for c in kept] == ["Beta"]
+
+
+FAKE_CRAFTABLES = [
+    {"game_id": 1, "name": "Tacos", "level": 100, "stars": 1, "jobs": ["Cooking"],
+     "scrips": {"low": 12, "mid": 18, "high": 27}},
+    {"game_id": 2, "name": "Lumber", "level": 80, "stars": 0, "jobs": ["Woodworking", "Smithing"],
+     "scrips": None},
+]
+
+
+def test_craftables_scrip_filter_is_on_by_default(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    assert [c["name"] for c in lists.get_craftables()] == ["Tacos"]
+    assert len(lists.get_craftables(scrip_only=False)) == 2
+
+
+def test_craftables_job_filter_uses_real_job_names(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    kept = lists.get_craftables(job="blacksmith", scrip_only=False)
+    assert [c["name"] for c in kept] == ["Lumber"]
+
+
+def test_craft_types_are_mapped_to_job_names(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    tacos = lists.get_craftables(scrip_only=True)[0]
+    assert tacos["jobs"] == [{"name": "Culinarian", "icon_id": 62015}]
+
+
+def test_craftables_level_filter(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: FAKE_CRAFTABLES)
+    kept = lists.get_craftables(min_level=90, scrip_only=False)
+    assert [c["name"] for c in kept] == ["Tacos"]
+
+
+def test_add_craft_with_materials_adds_both(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_craft_with_materials("Crafts", "Crested Headband", 1)
+    names = {item["name"]: item["amount"] for item in lists.get_items("Crafts")}
+    assert names == {"Crested Headband": 1, "Iron Ore": 4, "Wind Cluster": 3}
+
+
+def test_add_craft_without_recipe_adds_item_once(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_craft_with_materials("Crafts", "Iron Ore", 5)
+    names = {item["name"]: item["amount"] for item in lists.get_items("Crafts")}
+    assert names == {"Iron Ore": 5}
 
 
 def test_alarm_sounds_list_built_in_first_and_custom_last():

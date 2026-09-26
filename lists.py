@@ -1,3 +1,4 @@
+import json
 import math
 import re
 from pathlib import Path
@@ -6,7 +7,7 @@ import settings
 import storage
 import xivapi
 
-VALID_LIST_NAME = re.compile(r"^[A-Za-z0-9 _-]{1,50}$")
+VALID_LIST_NAME = re.compile(r"^[\w ,'-]{1,50}$", re.UNICODE)
 MAX_RECIPE_DEPTH = 10
 ALARMS_DIR = Path(__file__).parent / "static" / "alarms"
 AUDIO_PATTERNS = ("*.mp3", "*.wav", "*.ogg")
@@ -125,6 +126,23 @@ def next_item_id(items):
     return max(used_ids, default=0) + 1
 
 
+def create_list(list_name):
+    """Create a new empty list if the name is valid and not taken."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    if list_name not in storage.get_list_names():
+        storage.save_items(list_name, [])
+
+
+def clear_items(list_name):
+    """Remove all items from the named list, keeping the list itself."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    storage.save_items(list_name, [])
+
+
 def remove_list(list_name):
     """Delete a whole list."""
     list_name = normalize_spaces(list_name)
@@ -152,6 +170,141 @@ def suggest_item_names(text):
 
 
 BUILT_IN_ALARMS = ["classic-beep.wav", "chime.wav", "buzzer.wav"]
+
+
+JOB_GROUPS = {
+    "miner": ("Mining", "Quarrying"),
+    "botanist": ("Logging", "Harvesting"),
+    "fisher": ("Fishing", "Spearfishing"),
+}
+
+SORT_KEYS = {
+    "name": lambda c: c["name"],
+    "level": lambda c: (c["level"], c["stars"], c["name"]),
+    "stars": lambda c: (c["stars"], c["level"], c["name"]),
+    "job": lambda c: (c["job"] or "~", c["level"], c["name"]),
+    "zone": lambda c: (c["zone"] or "~", c["name"]),
+    "scrips": lambda c: (c["scrips"]["high"] if c["scrips"] else -1, c["name"]),
+}
+
+NATURAL_DIRECTIONS = {
+    "name": "asc",
+    "level": "desc",
+    "stars": "desc",
+    "job": "asc",
+    "zone": "asc",
+    "scrips": "desc",
+}
+
+
+def get_collectables(sort_by="level", direction=None, job="all", min_level=None, max_level=None):
+    """Return gathering collectables filtered and sorted for display."""
+    collectables = xivapi.fetch_collectables() or []
+    kept = filter_collectables(collectables, job, min_level, max_level)
+    return sort_collectables(kept, sort_by, direction)
+
+
+def filter_collectables(collectables, job, min_level, max_level):
+    """Keep only collectables matching the job and level filters."""
+    kept = []
+    for collectable in collectables:
+        if job in JOB_GROUPS and collectable["job"] not in JOB_GROUPS[job]:
+            continue
+        if min_level is not None and collectable["level"] < min_level:
+            continue
+        if max_level is not None and collectable["level"] > max_level:
+            continue
+        kept.append(collectable)
+    return kept
+
+
+def sort_collectables(collectables, sort_by, direction):
+    """Sort collectables by one column in the given or its natural direction."""
+    if sort_by not in SORT_KEYS:
+        sort_by = "level"
+    direction = normalize_direction(sort_by, direction)
+    return sorted(collectables, key=SORT_KEYS[sort_by], reverse=direction == "desc")
+
+
+def normalize_direction(sort_by, direction):
+    """Return asc or desc, falling back to the column's natural direction."""
+    if direction in ("asc", "desc"):
+        return direction
+    return NATURAL_DIRECTIONS.get(sort_by, "desc")
+
+
+CRAFT_SORT_KEYS = {
+    "name": lambda c: c["name"],
+    "level": lambda c: (c["level"], c["stars"], c["name"]),
+    "stars": lambda c: (c["stars"], c["level"], c["name"]),
+    "job": lambda c: (c["jobs"][0]["name"] if c["jobs"] else "~", c["level"], c["name"]),
+    "scrips": lambda c: (c["scrips"]["high"] if c["scrips"] else -1, c["name"]),
+}
+
+JOB_NAMES_FILE = Path(__file__).parent / "job_names.json"
+JOB_NAME_CACHE = {}
+
+
+def load_job_names():
+    """Return the craft type to job name mapping from the overwrite file."""
+    if not JOB_NAME_CACHE and JOB_NAMES_FILE.exists():
+        with open(JOB_NAMES_FILE, encoding="utf-8") as file:
+            JOB_NAME_CACHE.update(json.load(file))
+    return JOB_NAME_CACHE
+
+
+def get_craftables(sort_by="level", direction=None, job="all", min_level=None, max_level=None, scrip_only=True):
+    """Return craftable collectables filtered and sorted for display."""
+    craftables = [with_job_names(c) for c in xivapi.fetch_craftables() or []]
+    kept = filter_craftables(craftables, job, min_level, max_level, scrip_only)
+    return sort_craftables(kept, sort_by, direction)
+
+
+def with_job_names(craftable):
+    """Replace raw craft type names with real job names and their icons."""
+    mapping = load_job_names()
+    jobs = []
+    for craft_type in craftable["jobs"]:
+        override = mapping.get(craft_type)
+        if override:
+            xivapi.download_craft_icon(override["icon_id"])
+            jobs.append({"name": override["name"], "icon_id": override["icon_id"]})
+        else:
+            jobs.append({"name": craft_type, "icon_id": None})
+    return dict(craftable, jobs=jobs)
+
+
+def filter_craftables(craftables, job, min_level, max_level, scrip_only):
+    """Keep only craftables matching the job, level and scrip filters."""
+    kept = []
+    for craftable in craftables:
+        jobs = [entry["name"].lower() for entry in craftable["jobs"]]
+        if job != "all" and job not in jobs:
+            continue
+        if min_level is not None and craftable["level"] < min_level:
+            continue
+        if max_level is not None and craftable["level"] > max_level:
+            continue
+        if scrip_only and not craftable["scrips"]:
+            continue
+        kept.append(craftable)
+    return kept
+
+
+def sort_craftables(craftables, sort_by, direction):
+    """Sort craftables by one column in the given or its natural direction."""
+    if sort_by not in CRAFT_SORT_KEYS:
+        sort_by = "level"
+    direction = normalize_direction(sort_by, direction)
+    return sorted(craftables, key=CRAFT_SORT_KEYS[sort_by], reverse=direction == "desc")
+
+
+def add_craft_with_materials(list_name, item_name, amount):
+    """Add a craftable item itself and all its base materials to the named list."""
+    add_item(list_name, item_name, amount)
+    recipe = xivapi.fetch_recipe(normalize_spaces(item_name))
+    if recipe:
+        add_crafted_item(list_name, item_name, amount)
 
 
 def alarm_sounds():

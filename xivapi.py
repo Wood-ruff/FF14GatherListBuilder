@@ -13,6 +13,9 @@ CACHE = {}
 RECIPES = {}
 SUGGESTIONS = {}
 GATHERING = {}
+COLLECTABLES = {}
+CRAFTABLES = {}
+DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
 
 NO_TIME = 65535
@@ -32,6 +35,9 @@ def clear_cache():
     RECIPES.clear()
     SUGGESTIONS.clear()
     GATHERING.clear()
+    COLLECTABLES.clear()
+    CRAFTABLES.clear()
+    DOWNLOADED_ICONS.clear()
     item_cache.clear()
 
 
@@ -235,8 +241,8 @@ def node_member_ids(base):
 
 def territory_aetheryte_name(territory):
     """Return the zone's aetheryte name, or None if the data has none."""
-    aetheryte = territory["Aetheryte"]
-    if aetheryte["row_id"] > 0:
+    aetheryte = territory.get("Aetheryte", {})
+    if aetheryte.get("row_id", 0) > 0:
         return aetheryte["fields"]["PlaceName"]["fields"]["Name"]
     return None
 
@@ -283,9 +289,380 @@ def game_time_to_minutes(value):
     return (value // 100) * 60 + value % 100
 
 
-def search_rows(sheet, query, fields=None):
+def fetch_collectables():
+    """Return all gathering collectables from memory, the cache file, or the api."""
+    language = settings.get_language()
+    if language in COLLECTABLES:
+        return COLLECTABLES[language]
+    data = item_cache.get_fresh_result(language, "collectables")
+    if data is None:
+        data = lookup_collectables()
+        if data is not None:
+            item_cache.store_result(language, data, "collectables")
+    COLLECTABLES[language] = data
+    return data
+
+
+def lookup_collectables():
+    """Fetch all gathering collectables with jobs, scrips and node positions."""
+    items = collectable_items()
+    if items is None:
+        return None
+    scrips = collectable_scrips()
+    if scrips is None:
+        return None
+    nodes = collectable_nodes([item["gi_id"] for item in items])
+    if nodes is None:
+        return None
+    download_job_icons({node["job_id"] for node in nodes.values()})
+    entries = [build_collectable(item, scrips, nodes) for item in items]
+    store_gathering_markers(entries)
+    return entries
+
+
+def store_gathering_markers(entries):
+    """Cache each collectable's node info so adding it to a list needs no lookups."""
+    markers = {}
+    for entry in entries:
+        markers[str(entry["game_id"])] = {
+            "timed": entry["timed"],
+            "times": entry["times"],
+            "zone": entry["zone"],
+            "aetheryte": entry["aetheryte"],
+        }
+    item_cache.store_results(markers, "gathering")
+
+
+def collectable_items():
+    """Fetch all collectable gathering items in one request."""
+    params = {
+        "sheets": "GatheringItem",
+        "query": "Item.IsCollectable=true",
+        "limit": 500,
+        "fields": "Item.Name,GatheringItemLevel.GatheringItemLevel,GatheringItemLevel.Stars",
+        "language": settings.get_language(),
+    }
+    data = get_json(SEARCH_URL, params)
+    if data is None:
+        return None
+    items = []
+    for row in data["results"]:
+        item = row["fields"]["Item"]
+        if item["row_id"] > 0 and item["fields"]["Name"]:
+            level = row["fields"]["GatheringItemLevel"]["fields"]
+            items.append({
+                "gi_id": row["row_id"],
+                "game_id": item["row_id"],
+                "name": item["fields"]["Name"],
+                "level": level["GatheringItemLevel"],
+                "stars": level["Stars"],
+            })
+    return items
+
+
+SCRIP_FIELDS = (
+    "Item,CollectablesShopRewardScrip.LowReward,"
+    "CollectablesShopRewardScrip.MidReward,CollectablesShopRewardScrip.HighReward"
+)
+
+
+def collectable_scrips():
+    """Map item ids to scrip rewards per tier, paging through the shop sheet."""
+    params = {"sheets": "CollectablesShopItem", "query": "Item>0", "limit": 500, "fields": SCRIP_FIELDS}
+    rewards = {}
+    for _page in range(10):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        for row in data["results"]:
+            add_scrip_reward(rewards, row)
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": SCRIP_FIELDS}
+    return rewards
+
+
+def add_scrip_reward(rewards, row):
+    """Store one shop row's scrip amounts under its item id."""
+    item_id = row["fields"]["Item"]["row_id"]
+    scrip = row["fields"]["CollectablesShopRewardScrip"].get("fields", {})
+    if item_id > 0 and scrip:
+        rewards[item_id] = {
+            "low": scrip["LowReward"],
+            "mid": scrip["MidReward"],
+            "high": scrip["HighReward"],
+        }
+
+
+def collectable_nodes(gi_ids):
+    """Map gathering item ids to their node's job, zone, position and spawn times."""
+    bases = gathering_bases(gi_ids)
+    if bases is None:
+        return None
+    positions = node_positions(list(bases))
+    zones = node_zones(list(bases))
+    if positions is None or zones is None:
+        return None
+    times = node_times([zone["point_id"] for zone in zones.values()])
+    if times is None:
+        return None
+    nodes = {}
+    for base_id, base in bases.items():
+        zone = zones.get(base_id)
+        node_time = times.get(zone["point_id"], []) if zone else []
+        node = build_node(base, positions.get(base_id), zone, node_time)
+        for gi_id in base["members"]:
+            nodes.setdefault(gi_id, node)
+    return nodes
+
+
+TRANSIENT_FIELDS = (
+    "EphemeralStartTime,EphemeralEndTime,"
+    "GatheringRarePopTimeTable.StartTime,GatheringRarePopTimeTable.Duration"
+)
+
+
+def node_times(point_ids):
+    """Fetch spawn windows for the given gathering points in batches."""
+    times = {}
+    for chunk in chunked(sorted(set(point_ids)), 100):
+        rows = ",".join(str(point_id) for point_id in chunk)
+        data = get_json(f"{SHEET_URL}/GatheringPointTransient", {"rows": rows, "fields": TRANSIENT_FIELDS})
+        if data is None:
+            return None
+        for row in data["rows"]:
+            times[row["row_id"]] = rare_pop_times(row["fields"]) + ephemeral_times(row["fields"])
+    return times
+
+
+def gathering_bases(gi_ids):
+    """Fetch the gathering point bases containing the given gathering items."""
+    bases = {}
+    for chunk in chunked(gi_ids, 40):
+        query = " ".join(f"Item[]={gi_id}" for gi_id in chunk)
+        results = search_rows("GatheringPointBase", query, "Item[].IsHidden,GatheringType.Name", limit=100)
+        if results is None:
+            return None
+        for base in results:
+            bases[base["row_id"]] = {
+                "job": base["fields"]["GatheringType"]["fields"]["Name"],
+                "job_id": base["fields"]["GatheringType"]["row_id"],
+                "members": [ref["row_id"] for ref in base["fields"]["Item"] if ref["row_id"] > 0],
+            }
+    return bases
+
+
+def node_positions(base_ids):
+    """Fetch raw world coordinates for the node bases by paging the whole sheet."""
+    wanted = set(base_ids)
+    positions = {}
+    params = {"limit": 500, "fields": "X,Y"}
+    for _page in range(10):
+        data = get_json(f"{SHEET_URL}/ExportedGatheringPoint", params)
+        if data is None:
+            return None
+        for row in data["rows"]:
+            if row["row_id"] in wanted:
+                positions[row["row_id"]] = (row["fields"]["X"], row["fields"]["Y"])
+        if len(data["rows"]) < params["limit"]:
+            break
+        params = dict(params, after=data["rows"][-1]["row_id"])
+    return positions
+
+
+ZONE_FIELDS = (
+    "GatheringPointBase.GatheringLevel,TerritoryType.PlaceName.Name,"
+    "TerritoryType.Aetheryte.PlaceName.Name,"
+    "TerritoryType.Map.SizeFactor,TerritoryType.Map.OffsetX,TerritoryType.Map.OffsetY"
+)
+
+
+def node_zones(base_ids):
+    """Fetch zone names and map scale data for the given node bases."""
+    zones = {}
+    for chunk in chunked(base_ids, 25):
+        query = " ".join(f"GatheringPointBase={base_id}" for base_id in chunk)
+        results = search_rows("GatheringPoint", query, ZONE_FIELDS, limit=100)
+        if results is None:
+            return None
+        for point in results:
+            add_zone(zones, point)
+    return zones
+
+
+def add_zone(zones, point):
+    """Store one gathering point's zone and map data under its base id."""
+    base_id = point["fields"]["GatheringPointBase"]["row_id"]
+    territory = point["fields"]["TerritoryType"]["fields"]
+    name = territory["PlaceName"].get("fields", {}).get("Name")
+    if not name:
+        return
+    map_fields = territory["Map"].get("fields", {})
+    zones.setdefault(base_id, {
+        "name": name,
+        "point_id": point["row_id"],
+        "aetheryte": territory_aetheryte_name(territory),
+        "size_factor": map_fields.get("SizeFactor", 100),
+        "offset_x": map_fields.get("OffsetX", 0),
+        "offset_y": map_fields.get("OffsetY", 0),
+    })
+
+
+def build_node(base, position, zone, times):
+    """Combine base, position, zone and time data into one node description."""
+    node = {
+        "job": base["job"],
+        "job_id": base["job_id"],
+        "zone": None,
+        "aetheryte": None,
+        "x": None,
+        "y": None,
+        "times": times,
+        "timed": len(times) > 0,
+    }
+    if zone:
+        node["zone"] = zone["name"]
+        node["aetheryte"] = zone["aetheryte"]
+        if position:
+            node["x"] = to_map_coord(position[0], zone["offset_x"], zone["size_factor"])
+            node["y"] = to_map_coord(position[1], zone["offset_y"], zone["size_factor"])
+    return node
+
+
+def build_collectable(item, scrips, nodes):
+    """Combine item, scrip and node data into one collectable entry."""
+    node = nodes.get(item["gi_id"]) or build_node({"job": None, "job_id": None}, None, None, [])
+    return {
+        "game_id": item["game_id"],
+        "name": item["name"],
+        "level": item["level"],
+        "stars": item["stars"],
+        "scrips": scrips.get(item["game_id"]),
+        "job": node["job"],
+        "job_id": node["job_id"],
+        "zone": node["zone"],
+        "aetheryte": node["aetheryte"],
+        "x": node["x"],
+        "y": node["y"],
+        "times": node["times"],
+        "timed": node["timed"],
+    }
+
+
+def download_craft_icon(icon_id):
+    """Download one crafting job icon once; later reads come from the cache."""
+    key = f"crafticon_{icon_id}"
+    if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
+        DOWNLOADED_ICONS.add(key)
+        return
+    png = fetch_asset(f"ui/icon/062000/{icon_id:06d}.tex")
+    if png:
+        item_cache.store_icon(key, png)
+        DOWNLOADED_ICONS.add(key)
+
+
+def download_job_icons(job_ids):
+    """Download the gathering job icons once."""
+    data = get_json(f"{SHEET_URL}/GatheringType", {"fields": "IconMain"})
+    if data is None:
+        return
+    for row in data["rows"]:
+        key = f"jobtype_{row['row_id']}"
+        if row["row_id"] in job_ids and not item_cache.has_icon(key):
+            png = fetch_asset(row["fields"]["IconMain"]["path"])
+            if png:
+                item_cache.store_icon(key, png)
+
+
+def to_map_coord(world, offset, size_factor):
+    """Convert a raw world coordinate into the in game map coordinate."""
+    scale = size_factor / 100
+    return round(((world + offset) * scale + 1024) / 2048 * 41 / scale + 1, 1)
+
+
+def chunked(values, size):
+    """Split values into lists of at most the given size."""
+    values = list(values)
+    return [values[i:i + size] for i in range(0, len(values), size)]
+
+
+def fetch_craftables():
+    """Return all craftable collectables from memory, the cache file, or the api."""
+    language = settings.get_language()
+    if language in CRAFTABLES:
+        return CRAFTABLES[language]
+    data = item_cache.get_fresh_result(language, "craftables")
+    if data is None:
+        data = lookup_craftables()
+        if data is not None:
+            item_cache.store_result(language, data, "craftables")
+    CRAFTABLES[language] = data
+    return data
+
+
+def lookup_craftables():
+    """Fetch all craftable collectables with their jobs and scrip rewards."""
+    recipes = collectable_recipes()
+    if recipes is None:
+        return None
+    scrips = collectable_scrips()
+    if scrips is None:
+        return None
+    return build_craftables(recipes, scrips)
+
+
+RECIPE_LIST_FIELDS = (
+    "ItemResult.Name,CraftType.Name,"
+    "RecipeLevelTable.ClassJobLevel,RecipeLevelTable.Stars"
+)
+
+
+def collectable_recipes():
+    """Fetch all recipes producing collectables, paging through the recipe sheet."""
+    params = {
+        "sheets": "Recipe",
+        "query": "ItemResult.IsCollectable=true",
+        "limit": 500,
+        "fields": RECIPE_LIST_FIELDS,
+        "language": settings.get_language(),
+    }
+    recipes = []
+    for _page in range(10):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        recipes.extend(data["results"])
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": RECIPE_LIST_FIELDS}
+    return recipes
+
+
+def build_craftables(recipes, scrips):
+    """Group recipes by their result item into craftable collectable entries."""
+    entries = {}
+    for recipe in recipes:
+        item = recipe["fields"]["ItemResult"]
+        if item["row_id"] <= 0 or not item["fields"]["Name"]:
+            continue
+        level = recipe["fields"]["RecipeLevelTable"]["fields"]
+        entry = entries.setdefault(item["row_id"], {
+            "game_id": item["row_id"],
+            "name": item["fields"]["Name"],
+            "level": level["ClassJobLevel"],
+            "stars": level["Stars"],
+            "jobs": [],
+            "scrips": scrips.get(item["row_id"]),
+        })
+        job = recipe["fields"]["CraftType"]["fields"]["Name"]
+        if job not in entry["jobs"]:
+            entry["jobs"].append(job)
+    return list(entries.values())
+
+
+def search_rows(sheet, query, fields=None, limit=1):
     """Search one sheet and return the result rows, or None on network errors."""
-    params = {"sheets": sheet, "query": query, "limit": 1, "language": settings.get_language()}
+    params = {"sheets": sheet, "query": query, "limit": limit, "language": settings.get_language()}
     if fields:
         params["fields"] = fields
     data = get_json(SEARCH_URL, params)

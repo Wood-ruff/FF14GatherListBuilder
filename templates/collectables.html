@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% macro sort_link(column, label) %}
+{% if sort == column %}
+<a href="/collectables?list={{ selected }}&sort={{ column }}&dir={{ 'asc' if dir == 'desc' else 'desc' }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}">{{ label }} {{ "▼" if dir == "desc" else "▲" }}</a>
+{% else %}
+<a href="/collectables?list={{ selected }}&sort={{ column }}&job={{ job }}&min={{ min_level }}&max={{ max_level }}">{{ label }}</a>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+    {% with picker_action = "/collectables" %}{% include "_list_picker.html" %}{% endwith %}
+
+    <section class="card">
+      <h2>{{ t("tab_collectables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+
+      <form method="get" action="/collectables" class="add-form">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <input type="hidden" name="dir" value="{{ dir }}">
+        <select name="job">
+          <option value="all" {% if job == "all" %}selected{% endif %}>{{ t("all_jobs") }}</option>
+          <option value="miner" {% if job == "miner" %}selected{% endif %}>{{ t("job_miner") }}</option>
+          <option value="botanist" {% if job == "botanist" %}selected{% endif %}>{{ t("job_botanist") }}</option>
+          <option value="fisher" {% if job == "fisher" %}selected{% endif %}>{{ t("job_fisher") }}</option>
+        </select>
+        <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
+        <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
+        <button type="submit" class="secondary">{{ t("filter") }}</button>
+      </form>
+
+      {% if collectables %}
+      <table>
+        <thead>
+          <tr>
+            <th>{{ sort_link("name", t("header_item")) }}</th>
+            <th>{{ sort_link("job", t("header_job")) }}</th>
+            <th class="num">{{ sort_link("level", t("header_level")) }}</th>
+            <th class="num">{{ sort_link("stars", t("header_stars")) }}</th>
+            <th class="num">{{ t("header_node") }}</th>
+            <th class="num">{{ sort_link("scrips", t("header_scrips")) }}</th>
+            <th>{{ sort_link("zone", t("header_position")) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for collectable in collectables %}
+          <tr>
+            <td>
+              <a href="https://www.garlandtools.org/db/#item/{{ collectable.game_id }}" target="_blank" rel="noopener">{{ collectable.name }}</a>
+            </td>
+            <td>
+              {% if collectable.job_id is not none %}<img class="icon" src="/job-icons/{{ collectable.job_id }}" alt="">{% endif %}
+              {{ collectable.job or "?" }}
+            </td>
+            <td class="num">{{ collectable.level }}</td>
+            <td class="num">{{ "★" * collectable.stars }}</td>
+            <td class="num">
+              {% if collectable.timed %}
+              <span class="node-timer" data-times='{{ collectable.times | tojson }}'
+                    data-zone="{{ collectable.zone or "?" }}"
+                    data-aetheryte="{{ collectable.aetheryte or "" }}"
+                    title="{{ t('timer_tooltip') }}">…</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="num">
+              {% if collectable.scrips %}
+              {{ collectable.scrips.low }} / {{ collectable.scrips.mid }} / {{ collectable.scrips.high }}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if collectable.zone %}
+              <a href="https://ffxiv.consolegameswiki.com/wiki/{{ collectable.zone | replace(" ", "_") | urlencode }}" target="_blank" rel="noopener">{{ collectable.zone }}</a>{% if collectable.x is not none %} ({{ collectable.x }}, {{ collectable.y }}){% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="actions">
+              <form method="post" action="/collectables/add" class="background-add">
+                <input type="hidden" name="list" value="{{ selected }}">
+                <input type="hidden" name="item" value="{{ collectable.name }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <input name="amount" type="number" min="1" value="1">
+                <button type="submit" class="secondary" {% if not selected %}disabled{% endif %}>{{ t("add") }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">{{ t("no_matches") }}</p>
+      {% endif %}
+    </section>
+{% endblock %}

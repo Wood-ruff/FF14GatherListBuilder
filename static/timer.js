@@ -93,15 +93,18 @@ function updateTimers() {
   let justOpened = false;
   for (const timer of document.querySelectorAll(".node-timer")) {
     const spawn = nextSpawn(JSON.parse(timer.dataset.times), now);
+    const time = formatRealDuration(spawn.etMinutes);
     if (spawn.open) {
-      timer.textContent = "up now — " + formatRealDuration(spawn.etMinutes) + " left";
+      timer.textContent = msg("timer_up", "up now — {time} left").replace("{time}", time);
       timer.classList.add("open");
       if (timer.dataset.wasOpen !== "1") {
         timer.dataset.wasOpen = "1";
-        justOpened = true;
+        if (timer.dataset.alarm === "1") {
+          justOpened = true;
+        }
       }
     } else {
-      timer.textContent = "in " + formatRealDuration(spawn.etMinutes);
+      timer.textContent = msg("timer_in", "in {time}").replace("{time}", time);
       timer.classList.remove("open");
       timer.dataset.wasOpen = "0";
     }
@@ -136,9 +139,22 @@ function setupTimerClicks() {
   for (const timer of document.querySelectorAll(".node-timer")) {
     timer.addEventListener("click", function () {
       const aetheryte = timer.dataset.aetheryte;
-      const body = aetheryte ? "Closest aetheryte: " + aetheryte : "No aetheryte data";
+      const body = aetheryte
+        ? msg("modal_aetheryte", "Closest aetheryte: ") + aetheryte
+        : msg("modal_no_aetheryte", "No aetheryte data");
       openModal(timer.dataset.zone, body);
     });
+  }
+}
+
+function startTicking() {
+  try {
+    const worker = new Worker("/static/timer-worker.js");
+    worker.onmessage = function () {
+      updateTimers();
+    };
+  } catch (error) {
+    setInterval(updateTimers, 1000);
   }
 }
 
@@ -146,4 +162,4 @@ setupModal();
 setupAlarmToggle();
 setupTimerClicks();
 updateTimers();
-setInterval(updateTimers, 1000);
+startTicking();
