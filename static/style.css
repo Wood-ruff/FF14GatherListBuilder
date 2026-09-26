@@ -325,35 +325,40 @@ button.danger:hover {
   appearance: none;
   width: 20px;
   height: 20px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  padding: 0;
+  border: 2px solid #3f566b;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 32%, #24303c, #0f151c 75%);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9);
   cursor: pointer;
   display: inline-grid;
   place-content: center;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
 
 .done-toggle::before {
-  content: "✓";
-  font-size: 13px;
-  line-height: 1;
-  color: transparent;
-  transition: color 0.2s ease;
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
 }
 
 .done-toggle:hover {
-  border-color: #c9a227;
+  border-color: #5aa7c9;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9), 0 0 6px rgba(90, 167, 201, 0.4);
 }
 
 .done-toggle:checked {
-  background: #33280f;
-  border-color: #c9a227;
-  box-shadow: 0 0 10px rgba(201, 162, 39, 0.45);
+  border-color: #7cc4e8;
+  background: radial-gradient(circle at 50% 38%, #1d4a63, #0e2431 80%);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5), 0 0 12px rgba(110, 190, 235, 0.6);
 }
 
 .done-toggle:checked::before {
-  color: #eccf6e;
+  background: radial-gradient(circle at 35% 35%, #d8f2ff, #3fa9d8 75%);
+  box-shadow: 0 0 8px rgba(150, 215, 250, 0.95);
 }
 
 tr.done td {
