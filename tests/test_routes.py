@@ -112,6 +112,32 @@ def test_toggle_mute_via_post(client):
     assert items
 
 
+def test_language_switch_translates_the_open_list_immediately(client, monkeypatch):
+    item = {"row_id": 5111, "fields": {"Name": "Iron Ore"}}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+
+    german = {"row_id": 5111, "fields": {"Name": "Eisenerz"}}
+    monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: german)
+    client.post("/language", data={"language": "de", "list": "Demo"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Eisenerz" in page
+
+
+def test_opening_a_list_in_a_new_language_localizes_it(client, monkeypatch):
+    item = {"row_id": 5111, "fields": {"Name": "Iron Ore"}}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+
+    client.post("/language", data={"language": "de", "list": "Demo"})
+    german = {"row_id": 5111, "fields": {"Name": "Eisenerz"}}
+    monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: german)
+    monkeypatch.setattr("routes.run_in_background", lambda task: task())
+    client.get("/?list=Demo")
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Eisenerz" in page
+
+
 def test_toggle_done_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
     response = client.post("/toggle-done", data={"list": "Demo", "id": "1", "done": "1"})

@@ -10,6 +10,7 @@ SHEET_URL = "https://v2.xivapi.com/api/sheet"
 ASSET_URL = "https://v2.xivapi.com/api/asset"
 
 CACHE = {}
+ID_CACHE = {}
 RECIPES = {}
 SUGGESTIONS = {}
 GATHERING = {}
@@ -32,6 +33,7 @@ def last_call_failed():
 def clear_cache():
     """Forget all cached items and recipes, in memory and on disk."""
     CACHE.clear()
+    ID_CACHE.clear()
     RECIPES.clear()
     SUGGESTIONS.clear()
     GATHERING.clear()
@@ -146,6 +148,31 @@ def fetch_recipe_row(recipe_id):
                 "amount": amount,
             })
     return {"yields": fields["AmountResult"], "ingredients": ingredients}
+
+
+def fetch_item_by_id(game_id):
+    """Return item data for a game id in the current language, independent of names."""
+    key = f"{settings.get_language()}:{game_id}"
+    if key in ID_CACHE:
+        return ID_CACHE[key]
+    item = item_cache.get_fresh_result(key, "item_id")
+    if item is None:
+        item = lookup_item_by_id(game_id)
+        if item is not None:
+            item_cache.store_result(key, item, "item_id")
+    if item:
+        ensure_icon(item)
+    ID_CACHE[key] = item
+    return item
+
+
+def lookup_item_by_id(game_id):
+    """Fetch one item row from the api by its id."""
+    url = f"{SHEET_URL}/Item/{game_id}"
+    data = get_json(url, {"fields": "Name,Icon", "language": settings.get_language()})
+    if data is None or not data["fields"].get("Name"):
+        return None
+    return {"row_id": data["row_id"], "fields": data["fields"]}
 
 
 def fetch_gathering(game_id):

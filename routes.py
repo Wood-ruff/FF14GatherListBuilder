@@ -55,6 +55,8 @@ def show_list():
     """Show the selected list and the controls to edit it."""
     selected = request.args.get("list", "").strip()
     items = lists.get_items(selected) if selected else []
+    if lists.needs_localization(items):
+        run_in_background(lambda: lists.localize_list(selected))
     return render_template("index.html", items=items, **page_context(selected, "lists"))
 
 
@@ -288,9 +290,12 @@ def update_item():
 
 @routes.post("/language")
 def set_language():
-    """Change the game data language, then show the current list again."""
+    """Change the game data language, translate the open list, then show it again."""
     lists.set_language(request.form.get("language", ""))
-    return redirect(url_for("routes.show_list", list=request.form.get("list", "")))
+    list_name = request.form.get("list", "").strip()
+    if list_name:
+        lists.localize_list(list_name)
+    return redirect(url_for("routes.show_list", list=list_name))
 
 
 @routes.get("/export")

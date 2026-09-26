@@ -10,6 +10,7 @@ def isolated_caches(tmp_path, monkeypatch):
     monkeypatch.setattr("item_cache.CACHE_FILE", tmp_path / "item_cache.json")
     monkeypatch.setattr("item_cache.ICONS_DIR", tmp_path / "icons")
     xivapi.CACHE.clear()
+    xivapi.ID_CACHE.clear()
     xivapi.RECIPES.clear()
     xivapi.SUGGESTIONS.clear()
     xivapi.GATHERING.clear()
@@ -124,6 +125,46 @@ def test_search_uses_configured_language(monkeypatch):
     monkeypatch.setattr("settings.get_language", lambda: "de")
     xivapi.fetch_item("Eisenerz")
     assert seen_params[0]["language"] == "de"
+
+
+ITEM_ROW = {
+    "row_id": 5111,
+    "fields": {"Name": "Eisenerz", "Icon": {"path": "ui/icon/021000/021202.tex"}},
+}
+
+
+def item_by_id_api(url, params=None, **kwargs):
+    if url == xivapi.ASSET_URL:
+        return FakeResponse(content=b"png")
+    return FakeResponse(ITEM_ROW)
+
+
+def test_fetch_item_by_id_uses_the_current_language(monkeypatch):
+    seen_params = []
+
+    def capturing_get(url, params=None, **kwargs):
+        seen_params.append(params)
+        return item_by_id_api(url, params)
+
+    monkeypatch.setattr("requests.get", capturing_get)
+    monkeypatch.setattr("settings.get_language", lambda: "de")
+    item = xivapi.fetch_item_by_id(5111)
+    assert item["fields"]["Name"] == "Eisenerz"
+    assert seen_params[0]["language"] == "de"
+    assert item_cache.has_icon(5111)
+
+
+def test_fetch_item_by_id_is_cached_per_language(monkeypatch):
+    monkeypatch.setattr("requests.get", item_by_id_api)
+    xivapi.fetch_item_by_id(5111)
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.ID_CACHE.clear()
+    assert xivapi.fetch_item_by_id(5111)["fields"]["Name"] == "Eisenerz"
+    assert "item_id:en:5111" in item_cache.load_cache()
 
 
 def test_search_survives_network_error(monkeypatch):

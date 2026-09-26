@@ -93,6 +93,7 @@ def new_item(items, item_name, amount):
         "done": False,
         "muted": False,
         "materials_added": False,
+        "language": settings.get_language(),
     }
 
 
@@ -276,6 +277,7 @@ def imported_item(item_id, item):
         "done": bool(item.get("done", False)),
         "muted": bool(item.get("muted", False)),
         "materials_added": bool(item.get("materials_added", False)),
+        "language": None,
     }
 
 
@@ -286,13 +288,47 @@ def refresh_list_data(list_name):
         return
     items = storage.load_items(list_name)
     for item in items:
-        game_item = xivapi.fetch_item(item["name"])
+        game_item = None
+        if item.get("game_id"):
+            game_item = xivapi.fetch_item_by_id(item["game_id"])
+        if not game_item:
+            game_item = xivapi.fetch_item(item["name"])
         if game_item:
-            item["name"] = game_item["fields"]["Name"]
-            item["game_id"] = game_item["row_id"]
+            apply_game_item(item, game_item)
             item["gathering"] = xivapi.fetch_gathering(item["game_id"])
             item["craftable"] = xivapi.fetch_recipe(item["name"]) is not None
     storage.save_items(list_name, items)
+
+
+def apply_game_item(item, game_item):
+    """Write freshly fetched game data onto a list item."""
+    item["name"] = game_item["fields"]["Name"]
+    item["game_id"] = game_item["row_id"]
+    item["language"] = settings.get_language()
+
+
+def needs_localization(items):
+    """Check whether any item was resolved in another language."""
+    language = settings.get_language()
+    return any(item.get("game_id") and item.get("language") != language for item in items)
+
+
+def localize_list(list_name):
+    """Re-fetch items of a list by id so their names match the current language."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    language = settings.get_language()
+    items = storage.load_items(list_name)
+    changed = False
+    for item in items:
+        if item.get("game_id") and item.get("language") != language:
+            game_item = xivapi.fetch_item_by_id(item["game_id"])
+            if game_item:
+                apply_game_item(item, game_item)
+                changed = True
+    if changed:
+        storage.save_items(list_name, items)
 
 
 def clear_caches():

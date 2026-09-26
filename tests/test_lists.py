@@ -32,6 +32,8 @@ def fake_xivapi(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: FAKE_RECIPES.get(name.lower()))
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
+    monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: None)
+    monkeypatch.setattr("settings.get_language", lambda: "en")
 
 
 def test_valid_list_names():
@@ -55,8 +57,8 @@ def test_add_and_get_items(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Copper Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1},
-        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1},
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1},
+        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1},
     ]
 
 
@@ -65,7 +67,7 @@ def test_adding_same_item_sums_amounts(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Iron Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -74,7 +76,7 @@ def test_adding_same_item_ignores_case(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "iron ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -84,7 +86,7 @@ def test_spaces_are_normalized(tmp_path, monkeypatch):
     lists.add_item("My Ores", "Iron Ore", 5)
     assert lists.get_list_names() == ["My Ores"]
     assert lists.get_items(" My   Ores  ") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -352,6 +354,35 @@ def test_refresh_list_data_fills_game_data(tmp_path, monkeypatch):
     assert item["done"] is True
 
 
+def test_localize_list_switches_names_by_id(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Erze", "Iron Ore", 5)
+    assert not lists.needs_localization(lists.get_items("Erze"))
+
+    monkeypatch.setattr("settings.get_language", lambda: "de")
+    items = lists.get_items("Erze")
+    assert lists.needs_localization(items)
+
+    german = {"row_id": 5111, "fields": {"Name": "Eisenerz"}}
+    monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: german)
+    lists.localize_list("Erze")
+    item = lists.get_items("Erze")[0]
+    assert item["name"] == "Eisenerz"
+    assert item["language"] == "de"
+    assert not lists.needs_localization(lists.get_items("Erze"))
+
+
+def test_refresh_prefers_the_id_lookup_for_localization(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.import_list("Shared", [{"name": "Iron Ore", "amount": 5, "game_id": 5111}])
+    german = {"row_id": 5111, "fields": {"Name": "Eisenerz"}}
+    monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: german)
+    lists.refresh_list_data("Shared")
+    item = lists.get_items("Shared")[0]
+    assert item["name"] == "Eisenerz"
+    assert item["game_id"] == 5111
+
+
 def test_alarm_sounds_list_built_in_first_and_custom_last():
     sounds = lists.alarm_sounds()
     assert sounds[:3] == ["classic-beep.wav", "chime.wav", "buzzer.wav"]
@@ -369,7 +400,7 @@ def test_update_item_changes_amount(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.update_item("Ores", 1, 99)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -384,7 +415,7 @@ def test_added_item_takes_name_from_api(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "iRoN oRe", 20)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -420,7 +451,7 @@ def test_unknown_item_keeps_typed_name(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "Mystery Rock", 3)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "crystal": False, "group": 1}
+        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "language": "en", "crystal": False, "group": 1}
     ]
 
 
