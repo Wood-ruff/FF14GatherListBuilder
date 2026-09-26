@@ -8,6 +8,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     monkeypatch.setattr("xivapi.fetch_item", lambda name: None)
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: None)
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 
@@ -51,6 +52,35 @@ def test_delete_item_via_post(client):
     assert response.status_code == 302
     page = client.get("/?list=Demo").get_data(as_text=True)
     assert "Iron Ore" not in page
+
+
+def test_item_name_is_marked_for_chat_copy(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "20"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'class="copy-name" data-name="Iron Ore"' in page
+
+
+def test_timed_item_shows_node_timer(client, monkeypatch):
+    item = {"row_id": 43930, "fields": {"Name": "Bay Leaf"}}
+    gathering = {
+        "timed": True,
+        "times": [{"start": 600, "duration": 120}],
+        "zone": "Living Memory",
+        "aetheryte": "Leynode Mnemo",
+    }
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: gathering)
+    client.post("/add", data={"list": "Demo", "item": "Bay Leaf", "amount": "1"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'class="node-timer"' in page
+    assert 'data-zone="Living Memory"' in page
+    assert 'data-aetheryte="Leynode Mnemo"' in page
+
+
+def test_untimed_item_shows_no_timer(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "1"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "node-timer" not in page
 
 
 def test_known_item_links_to_garland_tools(client, monkeypatch):
@@ -117,6 +147,12 @@ def test_banner_shows_when_api_is_unreachable(client, monkeypatch):
 def test_no_banner_when_api_works(client):
     page = client.get("/").get_data(as_text=True)
     assert "Could not reach xivapi" not in page
+
+
+def test_alarm_dropdown_is_rendered(client):
+    page = client.get("/").get_data(as_text=True)
+    assert 'id="alarm-sound"' in page
+    assert 'value="classic-beep.wav"' in page
 
 
 def test_language_can_be_changed_via_post(client):

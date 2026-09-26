@@ -9,6 +9,18 @@
 <body>
   <header>
     <h1>Gather List Builder</h1>
+    <div class="top-left">
+      <select id="alarm-toggle">
+        <option value="off">Alarm off</option>
+        <option value="on">Alarm on</option>
+      </select>
+      <select id="alarm-sound">
+        {% for sound in alarm_sounds %}
+        <option value="{{ sound }}" {% if sound == "chime.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" id="alarm-test" class="secondary" title="Play the selected alarm">Test</button>
+    </div>
     <div class="top-right">
       <form method="post" action="/language">
         <input type="hidden" name="list" value="{{ selected }}">
@@ -87,16 +99,26 @@
       {% if items %}
       <table>
         <thead>
-          <tr><th>Item</th><th class="num">Amount</th><th class="num">Game ID</th><th></th></tr>
+          <tr><th>Item</th><th class="num">Amount</th><th class="num">Node up</th><th class="num">Game ID</th><th></th></tr>
         </thead>
         <tbody>
           {% for item in items %}
           <tr>
             <td>
               {% if item.game_id %}<img class="icon" src="/icons/{{ item.game_id }}" alt="">{% endif %}
-              {{ item.name }}
+              <span class="copy-name" data-name="{{ item.name }}" title="Copy item name — paste in the game chat and press Tab to make a link">{{ item.name }}</span>
             </td>
             <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
+            <td class="num">
+              {% if item.gathering and item.gathering.timed %}
+              <span class="node-timer" data-times='{{ item.gathering.times | tojson }}'
+                    data-zone="{{ item.gathering.zone or "?" }}"
+                    data-aetheryte="{{ item.gathering.aetheryte or "" }}"
+                    title="Click for zone and aetheryte">…</span>
+              {% else %}
+              <span class="muted">—</span>
+              {% endif %}
+            </td>
             <td class="num">
               {% if item.game_id %}
               <a href="https://www.garlandtools.org/db/#item/{{ item.game_id }}" target="_blank" rel="noopener">{{ item.game_id }}</a>
@@ -130,6 +152,18 @@
     {% endif %}
   </main>
 
+  <div id="toast" class="toast"></div>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <h3 id="modal-title"></h3>
+      <p id="modal-body"></p>
+      <button type="button" id="modal-close" class="secondary">Close</button>
+    </div>
+  </div>
+
   <script src="{{ url_for('static', filename='suggest.js') }}"></script>
+  <script src="{{ url_for('static', filename='copy.js') }}"></script>
+  <script src="{{ url_for('static', filename='timer.js') }}"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@ FAKE_RECIPES = {
 def fake_xivapi(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_item", lambda name: FAKE_ITEMS.get(name.lower()))
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: FAKE_RECIPES.get(name.lower()))
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
 
 
 def test_valid_list_names():
@@ -45,8 +46,8 @@ def test_add_and_get_items(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Copper Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111},
-        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None},
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None},
+        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None},
     ]
 
 
@@ -55,7 +56,7 @@ def test_adding_same_item_sums_amounts(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Iron Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
     ]
 
 
@@ -64,7 +65,7 @@ def test_adding_same_item_ignores_case(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "iron ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
     ]
 
 
@@ -74,7 +75,7 @@ def test_spaces_are_normalized(tmp_path, monkeypatch):
     lists.add_item("My Ores", "Iron Ore", 5)
     assert lists.get_list_names() == ["My Ores"]
     assert lists.get_items(" My   Ores  ") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None}
     ]
 
 
@@ -103,6 +104,13 @@ def test_short_suggestion_queries_are_not_searched(monkeypatch):
     assert calls == []
 
 
+def test_alarm_sounds_list_built_in_first_and_custom_last():
+    sounds = lists.alarm_sounds()
+    assert sounds[:3] == ["classic-beep.wav", "chime.wav", "buzzer.wav"]
+    for custom in sounds[3:]:
+        assert custom not in lists.BUILT_IN_ALARMS
+
+
 def test_unknown_list_is_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     assert lists.get_items("DoesNotExist") == []
@@ -113,7 +121,7 @@ def test_update_item_changes_amount(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.update_item("Ores", 1, 99)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111}
+        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None}
     ]
 
 
@@ -128,7 +136,7 @@ def test_added_item_takes_name_from_api(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "iRoN oRe", 20)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111}
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None}
     ]
 
 
@@ -164,7 +172,7 @@ def test_unknown_item_keeps_typed_name(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "Mystery Rock", 3)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None}
+        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None}
     ]
 
 

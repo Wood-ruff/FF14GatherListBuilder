@@ -1,5 +1,6 @@
 import math
 import re
+from pathlib import Path
 
 import settings
 import storage
@@ -7,6 +8,8 @@ import xivapi
 
 VALID_LIST_NAME = re.compile(r"^[A-Za-z0-9 _-]{1,50}$")
 MAX_RECIPE_DEPTH = 10
+ALARMS_DIR = Path(__file__).parent / "static" / "alarms"
+AUDIO_PATTERNS = ("*.mp3", "*.wav", "*.ogg")
 
 
 def normalize_spaces(text):
@@ -51,14 +54,17 @@ def new_item(items, item_name, amount):
     """Build a new list entry, preferring the item name the api returns."""
     game_item = xivapi.fetch_item(item_name)
     game_id = None
+    gathering = None
     if game_item:
         item_name = game_item["fields"]["Name"]
         game_id = game_item["row_id"]
+        gathering = xivapi.fetch_gathering(game_id)
     return {
         "id": next_item_id(items),
         "name": item_name,
         "amount": amount,
         "game_id": game_id,
+        "gathering": gathering,
     }
 
 
@@ -143,6 +149,19 @@ def suggest_item_names(text):
     if len(text) < 3:
         return []
     return xivapi.search_item_names(text)
+
+
+BUILT_IN_ALARMS = ["classic-beep.wav", "chime.wav", "buzzer.wav"]
+
+
+def alarm_sounds():
+    """Return all alarm sound file names, built-in sounds first, custom ones after."""
+    found = []
+    for pattern in AUDIO_PATTERNS:
+        found.extend(path.name for path in ALARMS_DIR.glob(pattern))
+    built_in = [name for name in BUILT_IN_ALARMS if name in found]
+    custom = sorted(name for name in found if name not in BUILT_IN_ALARMS)
+    return built_in + custom
 
 
 def last_lookup_failed():

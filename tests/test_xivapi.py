@@ -12,6 +12,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.CACHE.clear()
     xivapi.RECIPES.clear()
     xivapi.SUGGESTIONS.clear()
+    xivapi.GATHERING.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
 
@@ -247,6 +248,98 @@ def test_clear_cache_wipes_memory_and_file(monkeypatch):
     assert xivapi.CACHE == {}
     assert xivapi.RECIPES == {}
     assert item_cache.load_cache() == {}
+
+
+GATHERING_ITEM_ROW = [{"row_id": 10202, "fields": {}}]
+
+NODE_BASE_ROW = [{
+    "row_id": 1029,
+    "fields": {
+        "Item": [
+            {"row_id": 10202, "fields": {"Item": {"row_id": 43930, "fields": {"Name": "Bay Leaf"}}}},
+            {"row_id": 10203, "fields": {"Item": {"row_id": 43931, "fields": {"Name": "Other Leaf"}}}},
+            {"row_id": 0, "fields": {"Item": {"row_id": 0, "fields": {"Name": ""}}}},
+        ],
+    },
+}]
+
+NODE_POINT_ROW = [{
+    "row_id": 34989,
+    "fields": {
+        "TerritoryType": {
+            "fields": {
+                "PlaceName": {"fields": {"Name": "Living Memory"}},
+                "Aetheryte": {"row_id": 213, "fields": {"PlaceName": {"fields": {"Name": "Leynode Mnemo"}}}},
+            },
+        },
+    },
+}]
+
+TRANSIENT_ROW = {
+    "row_id": 34989,
+    "fields": {
+        "EphemeralStartTime": 65535,
+        "EphemeralEndTime": 65535,
+        "GatheringRarePopTimeTable": {
+            "row_id": 133,
+            "fields": {"StartTime": [1000, 2200, 65535], "Duration": [160, 160, 0]},
+        },
+    },
+}
+
+
+def gathering_api(url, params=None, **kwargs):
+    if "sheet/GatheringPointTransient" in url:
+        return FakeResponse(TRANSIENT_ROW)
+    sheet = params.get("sheets") if params else None
+    if sheet == "GatheringItem":
+        return item_search_response(GATHERING_ITEM_ROW)
+    if sheet == "GatheringPointBase":
+        return item_search_response(NODE_BASE_ROW)
+    if sheet == "GatheringPoint":
+        return item_search_response(NODE_POINT_ROW)
+    return item_search_response([])
+
+
+def test_fetch_gathering_returns_timed_node_info(monkeypatch):
+    monkeypatch.setattr("requests.get", gathering_api)
+    info = xivapi.fetch_gathering(43930)
+    assert info == {
+        "timed": True,
+        "times": [{"start": 600, "duration": 120}, {"start": 1320, "duration": 120}],
+        "zone": "Living Memory",
+        "aetheryte": "Leynode Mnemo",
+    }
+
+
+def test_cached_node_answers_for_other_items_in_it(monkeypatch):
+    monkeypatch.setattr("requests.get", gathering_api)
+    xivapi.fetch_gathering(43930)
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.GATHERING.clear()
+    info = xivapi.fetch_gathering(43931)
+    assert info["timed"] is True
+    assert info["zone"] == "Living Memory"
+
+
+def test_ungatherable_item_is_marked_in_cache(monkeypatch):
+    monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response([]))
+    info = xivapi.fetch_gathering(5111)
+    assert info == {"timed": False, "times": [], "zone": None, "aetheryte": None}
+    assert item_cache.load_cache()["gathering:5111"]["result"]["timed"] is False
+
+
+def test_gathering_network_error_is_not_cached(monkeypatch):
+    def broken_get(*args, **kwargs):
+        raise requests.ConnectionError()
+
+    monkeypatch.setattr("requests.get", broken_get)
+    assert xivapi.fetch_gathering(43930) is None
+    assert "gathering:43930" not in item_cache.load_cache()
 
 
 def test_fetch_recipe_for_uncraftable_item(monkeypatch):

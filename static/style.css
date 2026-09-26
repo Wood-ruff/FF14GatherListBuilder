@@ -34,6 +34,15 @@ header {
   gap: 16px;
 }
 
+.top-left {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 h1 {
   margin: 0;
   font-size: 1.6rem;
@@ -51,7 +60,7 @@ h2 {
 }
 
 main {
-  max-width: 640px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 16px;
   display: grid;
@@ -210,6 +219,12 @@ th {
 td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+td:first-child {
+  width: 100%;
+  white-space: normal;
 }
 
 tbody tr:last-child td {
@@ -270,6 +285,73 @@ button.danger:hover {
   border-radius: 4px;
   vertical-align: middle;
   margin-right: 8px;
+}
+
+.copy-name {
+  cursor: pointer;
+}
+
+.node-timer {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+
+.modal-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 280px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.modal-box h3 {
+  margin: 0 0 8px;
+}
+
+.modal-box p {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+}
+
+.node-timer.open {
+  color: #7bc275;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 20px;
+  transform: translateX(calc(100% + 24px));
+  transition: transform 0.3s ease;
+  z-index: 20;
+}
+
+.toast.show {
+  transform: translateX(0);
+}
+
+.copy-name:hover {
+  text-decoration: underline dotted;
 }
 
 a {
