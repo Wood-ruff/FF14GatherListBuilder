@@ -130,6 +130,13 @@ main {
   align-items: baseline;
 }
 
+.switch-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
 .switch {
   display: flex;
   align-items: center;
@@ -200,6 +207,26 @@ form {
 .name-filter {
   flex: none;
   width: 50%;
+}
+
+.grid-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refresh-page {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.refresh-page:hover {
+  background: none;
+  color: var(--text);
 }
 
 .pagination {

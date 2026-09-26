@@ -30,3 +30,9 @@ for (const form of document.querySelectorAll(".filters")) {
   setupLiveFilters(form);
   refocusNameFilter(form);
 }
+
+for (const button of document.querySelectorAll(".refresh-page")) {
+  button.addEventListener("click", function () {
+    location.reload();
+  });
+}

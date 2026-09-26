@@ -12,7 +12,13 @@
     {% with picker_action = "/craftables" %}{% include "_list_picker.html" %}{% endwith %}
 
     <section class="card">
-      <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+      <div class="card-head">
+        <h2>{{ t("tab_craftables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+        <label class="switch">
+          <input type="checkbox" id="pin-persist-toggle" data-store="craftables">
+          {{ t("pins_persist") }}
+        </label>
+      </div>
 
       <form method="get" action="/craftables" class="filters" id="craftable-filters">
         <input type="hidden" name="list" value="{{ selected }}">
@@ -38,6 +44,10 @@
         <input name="minscrips" type="number" min="1" placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
         </div>
       </form>
+
+      <div class="grid-tools">
+        <button type="button" class="refresh-page" title="{{ t('refresh') }}">&#10227;</button>
+      </div>
 
       {% if craftables %}
       <table class="pin-table">

@@ -56,6 +56,21 @@ def pagination_args(entries):
     }
 
 
+def persisted_pins(store, entries):
+    """Return the entries pinned in the browser, when pin persistence is switched on."""
+    if request.cookies.get(f"pin-persist-{store}") != "1":
+        return []
+    raw = request.cookies.get(f"pins-{store}", "")
+    ids = {int(part) for part in raw.split("-") if part.isdigit()}
+    return [entry for entry in entries if entry["game_id"] in ids]
+
+
+def with_pins_first(entries, pinned):
+    """Put pinned entries first and drop their duplicates from the page entries."""
+    pinned_ids = {entry["game_id"] for entry in pinned}
+    return pinned + [entry for entry in entries if entry["game_id"] not in pinned_ids]
+
+
 def page_context(selected, active_tab):
     """Build the template values shared by all pages."""
     return {
@@ -104,7 +119,9 @@ def show_collectables():
         shop,
         name_filter,
     )
+    pinned = persisted_pins("collectables", lists.get_collectables(sort, direction))
     collectables, pagination = pagination_args(collectables)
+    collectables = with_pins_first(collectables, pinned)
     return render_template(
         "collectables.html",
         collectables=collectables,
@@ -145,7 +162,9 @@ def show_craftables():
         int(min_scrips) if min_scrips.isdigit() else None,
         name_filter,
     )
+    pinned = persisted_pins("craftables", lists.get_craftables(sort, direction, scrip_mode="all"))
     craftables, pagination = pagination_args(craftables)
+    craftables = with_pins_first(craftables, pinned)
     return render_template(
         "craftables.html",
         craftables=craftables,

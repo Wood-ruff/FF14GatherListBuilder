@@ -39,6 +39,12 @@ function saveLocalSticky(store, id, sticky) {
     }
     localStorage.setItem("sticky-" + store, JSON.stringify(Array.from(ids)));
   } catch (error) {}
+  syncPinCookie(store);
+}
+
+function syncPinCookie(store) {
+  const ids = loadLocalSticky(store);
+  document.cookie = "pins-" + store + "=" + ids.join("-") + ";path=/;max-age=31536000;SameSite=Lax";
 }
 
 function restoreLocalSticky() {
@@ -54,16 +60,39 @@ function restoreLocalSticky() {
   }
 }
 
+function pinPersistOn(store) {
+  return document.cookie.includes("pin-persist-" + store + "=1");
+}
+
 function setupStickyToggles() {
   for (const button of document.querySelectorAll(".sticky-toggle")) {
     button.addEventListener("click", function () {
       const sticky = button.closest("tr").classList.toggle("sticky");
       persistSticky(button, sticky);
       updateStickyOffsets();
+      if (!sticky && button.dataset.store && pinPersistOn(button.dataset.store)) {
+        location.reload();
+      }
     });
   }
 }
 
+function setupPinPersistToggle() {
+  const toggle = document.getElementById("pin-persist-toggle");
+  if (toggle === null) {
+    return;
+  }
+  const store = toggle.dataset.store;
+  syncPinCookie(store);
+  toggle.checked = pinPersistOn(store);
+  toggle.addEventListener("change", function () {
+    document.cookie = "pin-persist-" + store + "=" + (toggle.checked ? "1" : "0") +
+      ";path=/;max-age=31536000;SameSite=Lax";
+    location.reload();
+  });
+}
+
 restoreLocalSticky();
 setupStickyToggles();
+setupPinPersistToggle();
 updateStickyOffsets();

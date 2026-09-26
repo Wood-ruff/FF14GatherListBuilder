@@ -405,6 +405,29 @@ def test_collectables_are_paginated(client, monkeypatch):
     assert "2 / 2" in page
 
 
+def test_pinned_items_persist_through_filters_and_paging(client, monkeypatch):
+    entries = [
+        {"game_id": n, "name": f"Item {n:03d}", "level": 50, "stars": 0, "job": "Mining",
+         "job_id": 0, "zone": None, "aetheryte": None, "x": None, "y": None,
+         "scrips": None, "times": [], "timed": False}
+        for n in range(1, 31)
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: entries)
+    client.set_cookie("pin-persist-collectables", "1")
+    client.set_cookie("pins-collectables", "30")
+
+    page = client.get("/collectables?sort=name&size=25").get_data(as_text=True)
+    assert "Item 030" in page
+
+    page = client.get("/collectables?sort=name&q=Item 001").get_data(as_text=True)
+    assert page.count(">Item 030</a>") == 1
+    assert page.count(">Item 001</a>") == 1
+
+    client.set_cookie("pin-persist-collectables", "0")
+    page = client.get("/collectables?sort=name&q=Item 001").get_data(as_text=True)
+    assert "Item 030" not in page
+
+
 def test_collectable_can_be_added_to_list(client, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
     response = client.post(
