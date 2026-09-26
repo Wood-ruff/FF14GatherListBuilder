@@ -88,6 +88,22 @@ function setupAlarmToggle() {
   document.getElementById("alarm-test").addEventListener("click", playAlarm);
 }
 
+function shouldAlarm(timer) {
+  if (timer.dataset.alarm === "1") {
+    return !alarmSuppressed(timer);
+  }
+  return alarmMarked(timer);
+}
+
+function alarmMarked(timer) {
+  if (typeof window.markedAlarmsOn !== "function" || !window.markedAlarmsOn()) {
+    return false;
+  }
+  const row = timer.closest("tr");
+  const mark = row ? row.querySelector(".alarm-mark") : null;
+  return mark !== null && mark.checked;
+}
+
 function alarmSuppressed(timer) {
   const row = timer.closest("tr");
   if (!row) {
@@ -109,7 +125,7 @@ function updateTimers() {
       timer.classList.add("open");
       if (timer.dataset.wasOpen !== "1") {
         timer.dataset.wasOpen = "1";
-        if (timer.dataset.alarm === "1" && !alarmSuppressed(timer)) {
+        if (shouldAlarm(timer)) {
           justOpened = true;
         }
       }

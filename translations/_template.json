@@ -23,6 +23,18 @@
     "english": "Test",
     "translation": ""
   },
+  "marked_alarms": {
+    "english": "Marked alarms",
+    "translation": ""
+  },
+  "marked_filter_only": {
+    "english": "Only alarm-marked",
+    "translation": ""
+  },
+  "alarm_mark_tooltip": {
+    "english": "Sound the alarm when this node comes up (needs marked alarms on)",
+    "translation": ""
+  },
   "alarm_test_title": {
     "english": "Play the selected alarm",
     "translation": ""

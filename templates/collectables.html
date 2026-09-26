@@ -12,9 +12,15 @@
     {% with picker_action = "/collectables" %}{% include "_list_picker.html" %}{% endwith %}
 
     <section class="card">
-      <h2>{{ t("tab_collectables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+      <div class="card-head">
+        <h2>{{ t("tab_collectables") }}{% if selected %} → {{ selected }}{% endif %}</h2>
+        <label class="switch">
+          <input type="checkbox" id="marked-alarm-toggle">
+          {{ t("marked_alarms") }}
+        </label>
+      </div>
 
-      <form method="get" action="/collectables" class="filters">
+      <form method="get" action="/collectables" class="filters" id="collectable-filters">
         <input type="hidden" name="list" value="{{ selected }}">
         <input type="hidden" name="sort" value="{{ sort }}">
         <input type="hidden" name="dir" value="{{ dir }}">
@@ -35,10 +41,18 @@
         </select>
         <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
         <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
-        <input name="minscrips" type="number" min="1" placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
         <button type="submit" class="secondary">{{ t("filter") }}</button>
         </div>
       </form>
+
+      <div class="filter-row">
+        <input name="minscrips" form="collectable-filters" type="number" min="1"
+               placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
+        <select id="marked-filter">
+          <option value="all">{{ t("all_items") }}</option>
+          <option value="marked">{{ t("marked_filter_only") }}</option>
+        </select>
+      </div>
 
       {% if collectables %}
       <table class="pin-table">
@@ -60,6 +74,9 @@
             <td>
               <button type="button" class="sticky-toggle" data-store="collectables" data-id="{{ collectable.game_id }}"
                       title="{{ t('sticky_tooltip') }}"></button>
+              {% if collectable.timed %}
+              <input type="checkbox" class="alarm-mark" data-id="{{ collectable.game_id }}" title="{{ t('alarm_mark_tooltip') }}">
+              {% endif %}
               <a href="https://www.garlandtools.org/db/#item/{{ collectable.game_id }}" target="_blank" rel="noopener">{{ collectable.name }}</a>
             </td>
             <td>

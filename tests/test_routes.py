@@ -359,6 +359,9 @@ def test_collectables_tab_lists_items(client, monkeypatch):
     assert 'href="https://www.garlandtools.org/db/#item/43930"' in page
     assert 'href="https://ffxiv.consolegameswiki.com/wiki/Living_Memory"' in page
     assert 'data-store="collectables"' in page
+    assert 'class="alarm-mark" data-id="43930"' in page
+    assert 'id="marked-alarm-toggle"' in page
+    assert 'id="marked-filter"' in page
 
 
 def test_list_picker_is_on_both_tabs(client, monkeypatch):
