@@ -30,7 +30,8 @@
         <button type="submit">{{ t("add") }}</button>
       </form>
 
-      <form method="post" action="/craft" class="add-form">
+      {# Hidden since the per-row "+ Materials" button covers this — remove the "hidden" attribute to bring the craft search field back. #}
+      <form method="post" action="/craft" class="add-form" hidden>
         <input type="hidden" name="list" value="{{ selected }}">
         <div class="suggest-box">
           <input name="item" placeholder="{{ t('craft_placeholder') }}" required autocomplete="off">

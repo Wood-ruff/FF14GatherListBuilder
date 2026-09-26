@@ -32,8 +32,12 @@ possible thanks to aggressive local caching.
 - **Create a list** with the "New list name" field, or open an existing one from the dropdown.
 - **Add items** by name — after a short pause while typing, a suggestion dropdown offers matching
   item names straight from the game data.
-- **Add materials**: type a craftable item into the second field and the app resolves its recipe
-  (including nested recipes) and adds all base materials instead.
+- Craftable items get a **"+ Materials" button** that resolves their recipe (including nested
+  recipes) and adds all base materials, scaled by the item's amount.
+- The list sorts itself: **craftable items on top, materials in the middle, crystals at the
+  bottom**, with divider lines between the groups.
+- **Tick the socket** in front of an item to mark it as done — it lights up and the row is
+  struck through. Progress is saved with the list.
 - Adding the same item again sums the amounts. Amounts are editable in place (Save), items can be
   deleted individually, and the whole list can be emptied or deleted.
 - **Click an item name** to copy it to your clipboard — paste it into the in-game chat and press
@@ -58,7 +62,9 @@ column headers, and add items to your selected list with one click.
 
 The same for crafter collectables: job (with icon), recipe level, and scrip rewards. The
 **"Add + materials"** button puts the collectable itself *and* all its base materials on your
-list, so you always know what you meant to craft.
+list, so you always know what you meant to craft. Adding runs in the background — you can keep
+browsing or switch tabs, and the list page refreshes itself when everything has arrived. Job
+display names and icons can be adjusted in `job_names.json`.
 
 ### Language
 

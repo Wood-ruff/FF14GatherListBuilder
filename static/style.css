@@ -12,6 +12,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -381,10 +385,6 @@ tr.done .copy-name {
 .node-timer {
   cursor: pointer;
   white-space: nowrap;
-}
-
-.modal[hidden] {
-  display: none;
 }
 
 .modal {
