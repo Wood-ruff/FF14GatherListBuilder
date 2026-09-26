@@ -17,6 +17,7 @@ def show_list():
         items=items,
         language=lists.get_language(),
         languages=lists.supported_languages(),
+        api_failed=lists.last_lookup_failed(),
     )
 
 

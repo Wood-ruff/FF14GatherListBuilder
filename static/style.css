@@ -58,6 +58,14 @@ main {
   gap: 16px;
 }
 
+.banner {
+  background: rgba(224, 108, 117, 0.12);
+  border: 1px solid #e06c75;
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #e8a0a6;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);

@@ -137,6 +137,11 @@ def icon_folder():
     return xivapi.icon_folder()
 
 
+def last_lookup_failed():
+    """Tell whether the most recent api lookup failed to reach xivapi."""
+    return xivapi.last_call_failed()
+
+
 def get_language():
     """Return the configured game data language."""
     return settings.get_language()

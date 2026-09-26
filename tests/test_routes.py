@@ -101,6 +101,17 @@ def test_delete_list_via_post(client):
     assert "Demo" not in page
 
 
+def test_banner_shows_when_api_is_unreachable(client, monkeypatch):
+    monkeypatch.setattr("lists.last_lookup_failed", lambda: True)
+    page = client.get("/").get_data(as_text=True)
+    assert "Could not reach xivapi" in page
+
+
+def test_no_banner_when_api_works(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "Could not reach xivapi" not in page
+
+
 def test_language_can_be_changed_via_post(client):
     response = client.post("/language", data={"language": "de", "list": ""})
     assert response.status_code == 302

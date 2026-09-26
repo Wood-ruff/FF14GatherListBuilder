@@ -1,3 +1,5 @@
+import logging
+
 import requests
 
 import item_cache
@@ -9,6 +11,14 @@ ASSET_URL = "https://v2.xivapi.com/api/asset"
 
 CACHE = {}
 RECIPES = {}
+API_STATUS = {"last_call_failed": False}
+
+LOG = logging.getLogger(__name__)
+
+
+def last_call_failed():
+    """Tell whether the most recent api call failed to reach xivapi."""
+    return API_STATUS["last_call_failed"]
 
 
 def clear_cache():
@@ -138,20 +148,28 @@ def search_items(item_name):
 
 def get_json(url, params):
     """Send one api request and return the parsed json, or None on errors."""
+    LOG.info("calling xivapi: %s %s", url, params)
     try:
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
-    except requests.RequestException:
+    except requests.RequestException as error:
+        LOG.warning("xivapi request to %s failed: %s", url, error)
+        API_STATUS["last_call_failed"] = True
         return None
+    API_STATUS["last_call_failed"] = False
     return response.json()
 
 
 def fetch_asset(path):
     """Download one game asset as png bytes, or None on errors."""
+    LOG.info("calling xivapi asset: %s", path)
     params = {"path": path, "format": "png"}
     try:
         response = requests.get(ASSET_URL, params=params, timeout=10)
         response.raise_for_status()
-    except requests.RequestException:
+    except requests.RequestException as error:
+        LOG.warning("xivapi asset download of %s failed: %s", path, error)
+        API_STATUS["last_call_failed"] = True
         return None
+    API_STATUS["last_call_failed"] = False
     return response.content

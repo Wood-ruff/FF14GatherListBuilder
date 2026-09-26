@@ -27,6 +27,13 @@
   </header>
 
   <main>
+    {% if api_failed %}
+    <div class="banner">
+      Could not reach xivapi — the last lookup failed, items were added without game data.
+      Check your internet connection and firewall.
+    </div>
+    {% endif %}
+
     <section class="card">
       <h2>Lists</h2>
       <div class="row">

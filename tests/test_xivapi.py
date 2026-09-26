@@ -11,6 +11,7 @@ def isolated_caches(tmp_path, monkeypatch):
     monkeypatch.setattr("item_cache.ICONS_DIR", tmp_path / "icons")
     xivapi.CACHE.clear()
     xivapi.RECIPES.clear()
+    xivapi.API_STATUS["last_call_failed"] = False
 
 
 SEARCH_RESULTS = [
@@ -126,6 +127,20 @@ def test_search_survives_network_error(monkeypatch):
 
     monkeypatch.setattr("requests.get", broken_get)
     assert xivapi.fetch_item_id("Iron Ore") is None
+
+
+def test_network_error_sets_and_success_clears_failure_flag(monkeypatch):
+    def broken_get(*args, **kwargs):
+        raise requests.ConnectionError()
+
+    monkeypatch.setattr("requests.get", broken_get)
+    xivapi.fetch_item_id("Iron Ore")
+    assert xivapi.last_call_failed()
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response(SEARCH_RESULTS))
+    xivapi.CACHE.clear()
+    xivapi.fetch_item_id("Iron Ore")
+    assert not xivapi.last_call_failed()
 
 
 ICON_ITEM = [
