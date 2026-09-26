@@ -70,8 +70,9 @@ display names and icons can be adjusted in `job_names.json`.
 
 The dropdown in the top right switches both the interface and the game data (item names,
 suggestions, zones) between EN, DE, FR and JA. Interface translations live in `translations/`
-as simple JSON files — copy `en.json`, translate the values, and name it after your language
-code to add a new one. (EN and DE are included.)
+as simple JSON files (EN and DE are included). To contribute a new one, copy
+`translations/_template.json` to `<code>.json` and fill in the `"translation"` values — see
+`translations/README.md`. Untranslated entries fall back to English.
 
 ### Caching
 

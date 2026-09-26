@@ -19,7 +19,18 @@ def load_language(language):
         path = TRANSLATIONS_DIR / f"{language}.json"
         if path.exists():
             with open(path, encoding="utf-8") as file:
-                LOADED[language] = json.load(file)
+                LOADED[language] = clean_texts(json.load(file))
         else:
             LOADED[language] = {}
     return LOADED[language]
+
+
+def clean_texts(raw):
+    """Return code to text, accepting plain strings or filled template entries."""
+    texts = {}
+    for code, value in raw.items():
+        if isinstance(value, dict):
+            value = value.get("translation", "")
+        if value:
+            texts[code] = value
+    return texts

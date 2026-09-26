@@ -1,0 +1,278 @@
+{
+  "tab_lists": {
+    "english": "Lists",
+    "translation": ""
+  },
+  "tab_collectables": {
+    "english": "Gatherable Collectables",
+    "translation": ""
+  },
+  "tab_craftables": {
+    "english": "Craftable Collectables",
+    "translation": ""
+  },
+  "alarm_off": {
+    "english": "Alarm off",
+    "translation": ""
+  },
+  "alarm_on": {
+    "english": "Alarm on",
+    "translation": ""
+  },
+  "alarm_test": {
+    "english": "Test",
+    "translation": ""
+  },
+  "alarm_test_title": {
+    "english": "Play the selected alarm",
+    "translation": ""
+  },
+  "language_set": {
+    "english": "Set",
+    "translation": ""
+  },
+  "clear_caches": {
+    "english": "Clear caches",
+    "translation": ""
+  },
+  "clear_caches_confirm": {
+    "english": "Clear all cached item data and icons?",
+    "translation": ""
+  },
+  "api_banner": {
+    "english": "Could not reach xivapi — the last lookup failed, items were added without game data. Check your internet connection and firewall.",
+    "translation": ""
+  },
+  "modal_close": {
+    "english": "Close",
+    "translation": ""
+  },
+  "lists_heading": {
+    "english": "Lists",
+    "translation": ""
+  },
+  "open": {
+    "english": "Open",
+    "translation": ""
+  },
+  "new_list_placeholder": {
+    "english": "New list name",
+    "translation": ""
+  },
+  "create": {
+    "english": "Create",
+    "translation": ""
+  },
+  "empty_list_button": {
+    "english": "Empty list",
+    "translation": ""
+  },
+  "empty_list_confirm": {
+    "english": "Remove all items from this list?",
+    "translation": ""
+  },
+  "delete_list": {
+    "english": "Delete list",
+    "translation": ""
+  },
+  "item_placeholder": {
+    "english": "Item name",
+    "translation": ""
+  },
+  "amount_placeholder": {
+    "english": "Amount",
+    "translation": ""
+  },
+  "add": {
+    "english": "Add",
+    "translation": ""
+  },
+  "craft_placeholder": {
+    "english": "Craftable item — adds its base materials",
+    "translation": ""
+  },
+  "add_materials": {
+    "english": "Add materials",
+    "translation": ""
+  },
+  "empty_hint": {
+    "english": "This list is empty — add your first item above.",
+    "translation": ""
+  },
+  "header_done": {
+    "english": "Done",
+    "translation": ""
+  },
+  "done_tooltip": {
+    "english": "Mark as done",
+    "translation": ""
+  },
+  "header_item": {
+    "english": "Item",
+    "translation": ""
+  },
+  "header_amount": {
+    "english": "Amount",
+    "translation": ""
+  },
+  "header_node": {
+    "english": "Node up",
+    "translation": ""
+  },
+  "header_game_id": {
+    "english": "Game ID",
+    "translation": ""
+  },
+  "header_job": {
+    "english": "Job",
+    "translation": ""
+  },
+  "header_jobs": {
+    "english": "Jobs",
+    "translation": ""
+  },
+  "header_level": {
+    "english": "Level",
+    "translation": ""
+  },
+  "header_stars": {
+    "english": "Stars",
+    "translation": ""
+  },
+  "header_scrips": {
+    "english": "Scrips",
+    "translation": ""
+  },
+  "header_position": {
+    "english": "Position",
+    "translation": ""
+  },
+  "row_add_materials": {
+    "english": "+ Materials",
+    "translation": ""
+  },
+  "row_add_materials_title": {
+    "english": "Add this item's base materials to the list",
+    "translation": ""
+  },
+  "save": {
+    "english": "Save",
+    "translation": ""
+  },
+  "delete": {
+    "english": "Delete",
+    "translation": ""
+  },
+  "copy_tooltip": {
+    "english": "Copy item name — paste in the game chat and press Tab to make a link",
+    "translation": ""
+  },
+  "timer_tooltip": {
+    "english": "Click for zone and aetheryte",
+    "translation": ""
+  },
+  "all_jobs": {
+    "english": "All jobs",
+    "translation": ""
+  },
+  "job_miner": {
+    "english": "Miner",
+    "translation": ""
+  },
+  "job_botanist": {
+    "english": "Botanist",
+    "translation": ""
+  },
+  "job_fisher": {
+    "english": "Fisher",
+    "translation": ""
+  },
+  "min_level": {
+    "english": "Min level",
+    "translation": ""
+  },
+  "min_scrips": {
+    "english": "Min scrips",
+    "translation": ""
+  },
+  "max_level": {
+    "english": "Max level",
+    "translation": ""
+  },
+  "filter": {
+    "english": "Filter",
+    "translation": ""
+  },
+  "name_filter": {
+    "english": "Filter by name…",
+    "translation": ""
+  },
+  "scrip_only": {
+    "english": "Scrip items only",
+    "translation": ""
+  },
+  "all_collectables": {
+    "english": "All collectables",
+    "translation": ""
+  },
+  "all_items": {
+    "english": "All items",
+    "translation": ""
+  },
+  "no_scrip_items": {
+    "english": "No scrip items",
+    "translation": ""
+  },
+  "no_matches": {
+    "english": "Nothing matches — loosen the filters, or check the connection and reload.",
+    "translation": ""
+  },
+  "add_with_materials": {
+    "english": "Add + materials",
+    "translation": ""
+  },
+  "suggest_toggle_title": {
+    "english": "Show suggestions",
+    "translation": ""
+  },
+  "toast_copied": {
+    "english": "Item copied to clipboard — paste in chat and press Tab for a link",
+    "translation": ""
+  },
+  "toast_added": {
+    "english": "Added: ",
+    "translation": ""
+  },
+  "toast_adding_materials": {
+    "english": "Adding with materials: ",
+    "translation": ""
+  },
+  "toast_add_failed": {
+    "english": "Adding failed",
+    "translation": ""
+  },
+  "toast_background_done": {
+    "english": "Background adding finished",
+    "translation": ""
+  },
+  "toast_background_done_reload": {
+    "english": "Background adding finished — list updated",
+    "translation": ""
+  },
+  "timer_up": {
+    "english": "up now — {time} left",
+    "translation": ""
+  },
+  "timer_in": {
+    "english": "in {time}",
+    "translation": ""
+  },
+  "modal_aetheryte": {
+    "english": "Closest aetheryte: ",
+    "translation": ""
+  },
+  "modal_no_aetheryte": {
+    "english": "No aetheryte data",
+    "translation": ""
+  }
+}
