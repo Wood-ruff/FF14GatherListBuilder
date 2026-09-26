@@ -33,8 +33,10 @@ def get_items(list_name):
     list_name = normalize_spaces(list_name)
     if not is_valid_list_name(list_name):
         return []
-    items = storage.load_items(list_name)
-    return sorted(items, key=item_sort_group)
+    items = sorted(storage.load_items(list_name), key=item_sort_group)
+    for item in items:
+        item["group"] = item_sort_group(item)
+    return items
 
 
 CRYSTAL_GAME_IDS = range(2, 20)

@@ -72,7 +72,7 @@ def test_toggle_done_via_post(client):
     response = client.post("/toggle-done", data={"list": "Demo", "id": "1", "done": "1"})
     assert response.status_code == 204
     page = client.get("/?list=Demo").get_data(as_text=True)
-    assert 'class="done"' in page
+    assert 'class="done' in page
     assert "checked" in page
 
 

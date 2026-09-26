@@ -55,7 +55,7 @@
         </thead>
         <tbody>
           {% for item in items %}
-          <tr class="{% if item.done %}done{% endif %}">
+          <tr class="{% if item.done %}done{% endif %} {% if loop.changed(item.group) and not loop.first %}group-start{% endif %}">
             <td>
               <input type="checkbox" class="done-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
                      {% if item.done %}checked{% endif %} title="{{ t('done_tooltip') }}">

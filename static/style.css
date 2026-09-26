@@ -326,9 +326,9 @@ button.danger:hover {
   width: 20px;
   height: 20px;
   padding: 0;
-  border: 2px solid #3f566b;
+  border: 2px solid #587e99;
   border-radius: 50%;
-  background: radial-gradient(circle at 32% 32%, #24303c, #0f151c 75%);
+  background: radial-gradient(circle at 32% 32%, #2a3c4c, #101a24 75%);
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9);
   cursor: pointer;
   display: inline-grid;
@@ -346,19 +346,23 @@ button.danger:hover {
 }
 
 .done-toggle:hover {
-  border-color: #5aa7c9;
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9), 0 0 6px rgba(90, 167, 201, 0.4);
+  border-color: #8fd0f0;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9), 0 0 6px rgba(140, 205, 240, 0.45);
 }
 
 .done-toggle:checked {
-  border-color: #7cc4e8;
-  background: radial-gradient(circle at 50% 38%, #1d4a63, #0e2431 80%);
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5), 0 0 12px rgba(110, 190, 235, 0.6);
+  border-color: #aadff8;
+  background: radial-gradient(circle at 50% 38%, #2a6c93, #123243 80%);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5), 0 0 12px rgba(150, 215, 250, 0.65);
 }
 
 .done-toggle:checked::before {
-  background: radial-gradient(circle at 35% 35%, #d8f2ff, #3fa9d8 75%);
-  box-shadow: 0 0 8px rgba(150, 215, 250, 0.95);
+  background: radial-gradient(circle at 35% 35%, #f0faff, #6fc5ea 75%);
+  box-shadow: 0 0 9px rgba(185, 230, 255, 1);
+}
+
+tr.group-start td {
+  border-top: 4px solid #5c4238;
 }
 
 tr.done td {
