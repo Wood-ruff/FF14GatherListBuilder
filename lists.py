@@ -48,7 +48,7 @@ def is_timed(item):
     return bool(gathering and gathering.get("timed")) and not is_crystal(item)
 
 
-CRYSTAL_GAME_IDS = range(2, 20)
+CRYSTAL_GAME_IDS = xivapi.CRYSTAL_GAME_IDS
 
 
 def is_crystal(item):
@@ -86,11 +86,14 @@ def new_item(items, item_name, amount):
     game_id = None
     gathering = None
     craftable = False
+    job_icons = []
     if game_item:
         item_name = game_item["fields"]["Name"]
         game_id = game_item["row_id"]
         gathering = xivapi.fetch_gathering(game_id)
-        craftable = xivapi.fetch_recipe(item_name) is not None
+        recipe = xivapi.fetch_recipe(item_name)
+        craftable = recipe is not None
+        job_icons = job_symbols(recipe, gathering)
     return {
         "id": next_item_id(items),
         "name": item_name,
@@ -98,6 +101,7 @@ def new_item(items, item_name, amount):
         "game_id": game_id,
         "gathering": gathering,
         "craftable": craftable,
+        "job_icons": job_icons,
         "done": False,
         "muted": False,
         "materials_added": False,
@@ -216,6 +220,54 @@ def next_item_id(items):
     return max(used_ids, default=0) + 1
 
 
+ITEM_MODEL_FILE = Path(__file__).parent / "models" / "item.json"
+
+
+def load_item_model():
+    """Return the item data model with its default values."""
+    with open(ITEM_MODEL_FILE, encoding="utf-8") as file:
+        return json.load(file)
+
+
+def migrate_lists():
+    """Add missing model fields to all stored lists and name the lists needing fresh data."""
+    model = load_item_model()
+    outdated = []
+    for list_name in storage.get_list_names():
+        changed = migrate_list(list_name, model)
+        if changed or list_needs_data(list_name):
+            outdated.append(list_name)
+    return outdated
+
+
+def list_needs_data(list_name):
+    """Check whether any item of a list is missing derived game data."""
+    return any(item_needs_data(item) for item in storage.load_items(list_name))
+
+
+def item_needs_data(item):
+    """Check whether an item has a game id but incomplete job symbols."""
+    if item.get("game_id") is None:
+        return False
+    if not item.get("job_icons"):
+        return True
+    return is_crystal(item) and len(item["job_icons"]) < 2
+
+
+def migrate_list(list_name, model):
+    """Fill missing model fields of one list with defaults, telling whether it changed."""
+    items = storage.load_items(list_name)
+    changed = False
+    for item in items:
+        for field, default in model.items():
+            if field not in item:
+                item[field] = default
+                changed = True
+    if changed:
+        storage.save_items(list_name, items)
+    return changed
+
+
 def create_list(list_name):
     """Create a new empty list if the name is valid and not taken."""
     list_name = normalize_spaces(list_name)
@@ -327,6 +379,7 @@ def imported_item(item_id, item):
         "materials_added": bool(item.get("materials_added", False)),
         "sticky": bool(item.get("sticky", False)),
         "note": imported_note(item),
+        "job_icons": [],
         "language": None,
     }
 
@@ -354,7 +407,9 @@ def refresh_list_data(list_name):
         if game_item:
             apply_game_item(item, game_item)
             item["gathering"] = xivapi.fetch_gathering(item["game_id"])
-            item["craftable"] = xivapi.fetch_recipe(item["name"]) is not None
+            recipe = xivapi.fetch_recipe(item["name"])
+            item["craftable"] = recipe is not None
+            item["job_icons"] = job_symbols(recipe, item["gathering"])
     storage.save_items(list_name, items)
 
 
@@ -644,6 +699,22 @@ def set_language(language):
 def supported_languages():
     """Return all supported game data languages."""
     return settings.LANGUAGES
+
+
+def job_symbols(recipe, gathering):
+    """Return the crafting and gathering job icons of an item."""
+    symbols = []
+    if recipe:
+        for craft_type in recipe.get("craft_types", []):
+            override = load_job_names().get(craft_type)
+            if override:
+                xivapi.download_craft_icon(override["icon_id"])
+                symbols.append({"type": "craft", "icon": override["icon_id"]})
+    if gathering:
+        for job_id in gathering.get("job_ids") or []:
+            xivapi.ensure_job_type_icon(job_id)
+            symbols.append({"type": "gather", "icon": job_id})
+    return symbols
 
 
 def find_item(items, item_name):

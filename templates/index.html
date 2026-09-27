@@ -94,6 +94,9 @@
             <td>
               {% if item.game_id %}<img class="icon" src="/icons/{{ item.game_id }}" alt="">{% endif %}
               <span class="copy-name" data-name="{{ item.name }}" title="{{ t('copy_tooltip') }}">{{ item.name }}</span>
+              {% for symbol in item.job_icons or [] %}
+              <img class="job-symbol" src="{{ '/craft-icons/' if symbol.type == 'craft' else '/job-icons/' }}{{ symbol.icon }}" alt="">
+              {% endfor %}
             </td>
             <td class="num"><input form="edit-{{ item.id }}" name="amount" type="number" min="1" value="{{ item.amount }}" required></td>
             <td class="num">

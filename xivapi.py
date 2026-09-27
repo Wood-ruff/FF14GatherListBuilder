@@ -20,7 +20,8 @@ DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
 
 NO_TIME = 65535
-NO_NODE = {"timed": False, "times": [], "zone": None, "aetheryte": None}
+CRYSTAL_GAME_IDS = range(2, 20)
+NO_NODE = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": []}
 
 LOG = logging.getLogger(__name__)
 
@@ -100,6 +101,8 @@ def fetch_recipe(item_name):
     if key in RECIPES:
         return RECIPES[key]
     recipe = item_cache.get_fresh_result(item_name, "recipe")
+    if recipe and "craft_types" not in recipe:
+        recipe = None
     if not recipe:
         recipe = lookup_recipe(item_name)
         if recipe:
@@ -109,23 +112,28 @@ def fetch_recipe(item_name):
 
 
 def lookup_recipe(item_name):
-    """Find the first recipe producing the item and return its ingredients, or None."""
+    """Find the recipes producing the item and return the first one's ingredients, or None."""
     item = fetch_item(item_name)
     if not item:
         return None
-    recipe_id = search_first_recipe_id(item["row_id"])
-    if not recipe_id:
+    rows = search_rows("Recipe", f"ItemResult={item['row_id']}", "CraftType.Name", limit=10)
+    if not rows:
         return None
-    return fetch_recipe_row(recipe_id)
+    recipe = fetch_recipe_row(rows[0]["row_id"])
+    if recipe is None:
+        return None
+    recipe["craft_types"] = distinct_craft_types(rows)
+    return recipe
 
 
-def search_first_recipe_id(item_id):
-    """Return the row id of the first recipe producing the item, or None."""
-    params = {"sheets": "Recipe", "query": f"ItemResult={item_id}", "limit": 1}
-    data = get_json(SEARCH_URL, params)
-    if not data or not data["results"]:
-        return None
-    return data["results"][0]["row_id"]
+def distinct_craft_types(recipe_rows):
+    """Return the distinct crafting class names of the given recipe rows."""
+    names = []
+    for row in recipe_rows:
+        name = row["fields"].get("CraftType", {}).get("fields", {}).get("Name")
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def fetch_recipe_row(recipe_id):
@@ -180,7 +188,11 @@ def fetch_gathering(game_id):
     if game_id in GATHERING:
         return GATHERING[game_id]
     info = item_cache.get_fresh_result(str(game_id), "gathering")
-    if info is None:
+    if info is not None and not isinstance(info.get("job_ids"), list):
+        info = None
+    if info is not None and game_id in CRYSTAL_GAME_IDS and len(info["job_ids"]) < 2:
+        info = None
+    if info is None and game_id not in CRYSTAL_GAME_IDS:
         info = find_in_cached_nodes(game_id)
     if info is None:
         info = lookup_gathering(game_id)
@@ -196,7 +208,7 @@ def find_in_cached_nodes(game_id):
         if entry.get("type") != "node" or item_cache.is_expired(entry["fetchdate"]):
             continue
         node = entry["result"]
-        if game_id in node["items"]:
+        if "job_id" in node and game_id in node["items"]:
             return item_info_from_node(node)
     return None
 
@@ -208,33 +220,48 @@ def item_info_from_node(node):
         "times": node["times"],
         "zone": node["zone"],
         "aetheryte": node["aetheryte"],
+        "job_ids": [node["job_id"]],
     }
 
 
 def lookup_gathering(game_id):
-    """Fetch the gathering node of an item, caching the whole node with all its items."""
+    """Fetch the gathering data of an item, caching its first node with all its items."""
     found = search_rows("GatheringItem", f"Item={game_id}")
     if found is None:
         return None
     if not found:
         return dict(NO_NODE)
-    node = lookup_node(found[0]["row_id"])
+    bases = search_rows(
+        "GatheringPointBase", f"+Item[]={found[0]['row_id']}",
+        "Item[].Item.Name,GatheringType.Name", limit=100,
+    )
+    if bases is None:
+        return None
+    if not bases:
+        return dict(NO_NODE)
+    node = lookup_node(bases[0])
     if node is None:
         return None
     if not node:
         return dict(NO_NODE)
     item_cache.store_result(str(node["base_id"]), node, "node")
-    return item_info_from_node(node)
+    info = item_info_from_node(node)
+    info["job_ids"] = distinct_gathering_jobs(bases)
+    return info
 
 
-def lookup_node(gathering_item_id):
+def distinct_gathering_jobs(bases):
+    """Return the distinct gathering type ids of the given node bases."""
+    job_ids = []
+    for base in bases:
+        job_id = base["fields"]["GatheringType"]["row_id"]
+        if job_id not in job_ids:
+            job_ids.append(job_id)
+    return job_ids
+
+
+def lookup_node(base):
     """Fetch one gathering node with its member items, zone, aetheryte and times."""
-    bases = search_rows("GatheringPointBase", f"+Item[]={gathering_item_id}", "Item[].Item.Name")
-    if bases is None:
-        return None
-    if not bases:
-        return {}
-    base = bases[0]
     points = search_rows(
         "GatheringPoint",
         f"GatheringPointBase={base['row_id']}",
@@ -254,6 +281,7 @@ def lookup_node(gathering_item_id):
         "zone": territory["PlaceName"]["fields"]["Name"],
         "aetheryte": territory_aetheryte_name(territory),
         "times": times,
+        "job_id": base["fields"]["GatheringType"]["row_id"],
     }
 
 
@@ -356,6 +384,7 @@ def store_gathering_markers(entries):
             "times": entry["times"],
             "zone": entry["zone"],
             "aetheryte": entry["aetheryte"],
+            "job_ids": [entry["job_id"]] if entry["job_id"] is not None else [],
         }
     item_cache.store_results(markers, "gathering")
 
@@ -586,6 +615,12 @@ def download_craft_icon(icon_id):
     if png:
         item_cache.store_icon(key, png)
         DOWNLOADED_ICONS.add(key)
+
+
+def ensure_job_type_icon(type_id):
+    """Download one gathering job icon if it is not cached yet."""
+    if not item_cache.has_icon(f"jobtype_{type_id}"):
+        download_job_icons({type_id})
 
 
 def download_job_icons(job_ids):

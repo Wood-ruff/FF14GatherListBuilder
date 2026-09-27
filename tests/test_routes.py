@@ -10,6 +10,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: None)
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
+    monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 

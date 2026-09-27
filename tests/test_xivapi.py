@@ -61,7 +61,10 @@ def fake_api(url, params=None, **kwargs):
     if "sheet/Recipe" in url:
         return FakeResponse(RECIPE_ROW)
     if params and params.get("sheets") == "Recipe":
-        return item_search_response([{"row_id": 37451, "fields": {}}])
+        return item_search_response([
+            {"row_id": 37451, "fields": {"CraftType": {"row_id": 5, "fields": {"Name": "Clothcraft"}}}},
+            {"row_id": 37452, "fields": {"CraftType": {"row_id": 1, "fields": {"Name": "Smithing"}}}},
+        ])
     return item_search_response(HEADBAND_SEARCH)
 
 
@@ -274,6 +277,7 @@ def test_fetch_recipe_returns_clean_ingredients(monkeypatch):
             {"name": "Diatryma Felt", "game_id": 45978, "amount": 2},
             {"name": "Wind Cluster", "game_id": 16, "amount": 3},
         ],
+        "craft_types": ["Clothcraft", "Smithing"],
     }
 
 
@@ -303,6 +307,7 @@ NODE_BASE_ROW = [{
             {"row_id": 10203, "fields": {"Item": {"row_id": 43931, "fields": {"Name": "Other Leaf"}}}},
             {"row_id": 0, "fields": {"Item": {"row_id": 0, "fields": {"Name": ""}}}},
         ],
+        "GatheringType": {"row_id": 3, "fields": {"Name": "Harvesting"}},
     },
 }]
 
@@ -352,6 +357,7 @@ def test_fetch_gathering_returns_timed_node_info(monkeypatch):
         "times": [{"start": 600, "duration": 120}, {"start": 1320, "duration": 120}],
         "zone": "Living Memory",
         "aetheryte": "Leynode Mnemo",
+        "job_ids": [3],
     }
 
 
@@ -372,7 +378,7 @@ def test_cached_node_answers_for_other_items_in_it(monkeypatch):
 def test_ungatherable_item_is_marked_in_cache(monkeypatch):
     monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response([]))
     info = xivapi.fetch_gathering(5111)
-    assert info == {"timed": False, "times": [], "zone": None, "aetheryte": None}
+    assert info == {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": []}
     assert item_cache.load_cache()["gathering:5111"]["result"]["timed"] is False
 
 
@@ -591,6 +597,60 @@ def test_fetch_craftables_is_cached(monkeypatch):
     monkeypatch.setattr("requests.get", no_more_calls)
     xivapi.CRAFTABLES.clear()
     assert len(xivapi.fetch_craftables()) == 2
+
+
+def test_old_shape_cached_recipe_is_refetched(monkeypatch):
+    item_cache.store_result("crested headband", {"yields": 1, "ingredients": []}, "recipe")
+    monkeypatch.setattr("requests.get", fake_api)
+    assert xivapi.fetch_recipe("Crested Headband")["craft_types"] == ["Clothcraft", "Smithing"]
+
+
+def test_crystal_with_one_gathering_job_is_refetched(monkeypatch):
+    single = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": [3]}
+    item_cache.store_result("16", single, "gathering")
+    calls = []
+
+    def counting_get(url, params=None, **kwargs):
+        calls.append(url)
+        return gathering_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", counting_get)
+    xivapi.fetch_gathering(16)
+    assert len(calls) > 0
+
+    item_cache.store_result("43930", single, "gathering")
+    calls.clear()
+    xivapi.fetch_gathering(43930)
+    assert calls == []
+
+
+def test_crystals_skip_the_cached_node_shortcut(monkeypatch):
+    node = {"base_id": 1029, "items": [16, 43930], "zone": "Somewhere",
+            "aetheryte": None, "times": [], "job_id": 3}
+    item_cache.store_result("1029", node, "node")
+    monkeypatch.setattr("requests.get", gathering_api)
+    assert xivapi.fetch_gathering(16)["job_ids"] == [3]
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.GATHERING.clear()
+    assert xivapi.fetch_gathering(43930)["job_ids"] == [3]
+
+
+def test_broken_cached_gathering_with_none_jobs_is_refetched(monkeypatch):
+    broken = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": None}
+    item_cache.store_result("19", broken, "gathering")
+    monkeypatch.setattr("requests.get", gathering_api)
+    assert xivapi.fetch_gathering(19)["job_ids"] == [3]
+
+
+def test_old_shape_cached_gathering_is_refetched(monkeypatch):
+    old = {"timed": True, "times": [], "zone": "Somewhere", "aetheryte": None}
+    item_cache.store_result("43930", old, "gathering")
+    monkeypatch.setattr("requests.get", gathering_api)
+    assert xivapi.fetch_gathering(43930)["job_ids"] == [3]
 
 
 def test_fetch_recipe_for_uncraftable_item(monkeypatch):

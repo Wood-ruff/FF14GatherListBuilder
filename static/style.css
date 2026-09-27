@@ -508,6 +508,14 @@ button.danger:hover {
   cursor: pointer;
 }
 
+.job-symbol {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  margin-left: 6px;
+  border-radius: 3px;
+}
+
 .done-toggle {
   appearance: none;
   width: 20px;

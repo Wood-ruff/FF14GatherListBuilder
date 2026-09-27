@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 from pathlib import Path
 from urllib.parse import urlencode
@@ -32,6 +33,8 @@ def inject_translations():
 WRITE_LOCK = threading.Lock()
 PENDING_ADDS = {"count": 0}
 
+LOG = logging.getLogger(__name__)
+
 
 def run_in_background(task):
     """Run one list changing task in a background thread, one at a time."""
@@ -39,6 +42,8 @@ def run_in_background(task):
         try:
             with WRITE_LOCK:
                 task()
+        except Exception:
+            LOG.exception("background task failed")
         finally:
             PENDING_ADDS["count"] -= 1
 

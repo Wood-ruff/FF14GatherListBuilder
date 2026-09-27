@@ -1,0 +1,14 @@
+{
+  "name": "",
+  "amount": 1,
+  "game_id": null,
+  "gathering": null,
+  "craftable": false,
+  "done": false,
+  "muted": false,
+  "materials_added": false,
+  "sticky": false,
+  "note": "",
+  "job_icons": [],
+  "language": null
+}
