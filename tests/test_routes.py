@@ -312,6 +312,21 @@ def test_create_list_rejects_bad_names(client):
     assert "evil" not in page
 
 
+def test_remove_materials_via_post(client, monkeypatch):
+    item = {"row_id": 47184, "fields": {"Name": "Crested Headband"}}
+    recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipe)
+    client.post("/add", data={"list": "Demo", "item": "Crested Headband", "amount": "1"})
+    client.post("/add-materials", data={"list": "Demo", "id": "1"})
+
+    response = client.post("/remove-materials", data={"list": "Demo"})
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Crested Headband" in page
+    assert "Iron Ore" not in page
+
+
 def test_clear_list_empties_but_keeps_the_list(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "20"})
     response = client.post("/clear-list", data={"list": "Demo"})

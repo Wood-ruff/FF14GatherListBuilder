@@ -22,6 +22,8 @@
   "export": "Exportieren",
   "import": "Importieren",
   "empty_list_button": "Liste leeren",
+  "remove_materials": "Materialien entfernen",
+  "remove_materials_confirm": "Alle Materialien und Kristalle aus dieser Liste entfernen?",
   "empty_list_confirm": "Alle Einträge aus dieser Liste entfernen?",
   "delete_list": "Liste löschen",
   "item_placeholder": "Itemname",

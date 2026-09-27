@@ -211,6 +211,18 @@ def create_list(list_name):
         storage.save_items(list_name, [])
 
 
+def remove_materials(list_name):
+    """Remove all materials and crystals from the named list, keeping craftable items."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return
+    items = storage.load_items(list_name)
+    craftables = [item for item in items if item.get("craftable", False)]
+    for item in craftables:
+        item["materials_added"] = False
+    storage.save_items(list_name, craftables)
+
+
 def clear_items(list_name):
     """Remove all items from the named list, keeping the list itself."""
     list_name = normalize_spaces(list_name)

@@ -400,6 +400,15 @@ def create_list():
     return redirect(url_for("routes.show_list", list=list_name))
 
 
+@routes.post("/remove-materials")
+def remove_materials():
+    """Remove all materials and crystals from the selected list, then show it again."""
+    list_name = request.form.get("list", "").strip()
+    if list_name:
+        lists.remove_materials(list_name)
+    return redirect(url_for("routes.show_list", list=list_name))
+
+
 @routes.post("/clear-list")
 def clear_list():
     """Empty the selected list, then show it again."""

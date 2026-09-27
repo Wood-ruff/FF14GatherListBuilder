@@ -282,6 +282,19 @@ def test_craft_with_materials_marks_the_item(tmp_path, monkeypatch):
     assert headband["materials_added"] is True
 
 
+def test_remove_materials_keeps_craftables_and_resets_markers(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Crafts", "Crested Headband", 1)
+    lists.add_materials_for("Crafts", 1)
+    lists.add_item("Crafts", "Copper Ore", 3)
+    assert lists.get_items("Crafts")[0]["materials_added"] is True
+
+    lists.remove_materials("Crafts")
+    items = lists.get_items("Crafts")
+    assert [item["name"] for item in items] == ["Crested Headband"]
+    assert items[0]["materials_added"] is False
+
+
 def test_set_muted_round_trip(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Mats", "Iron Ore", 5)

@@ -91,6 +91,14 @@
     "english": "Empty list",
     "translation": ""
   },
+  "remove_materials": {
+    "english": "Remove materials",
+    "translation": ""
+  },
+  "remove_materials_confirm": {
+    "english": "Remove all materials and crystals from this list?",
+    "translation": ""
+  },
   "empty_list_confirm": {
     "english": "Remove all items from this list?",
     "translation": ""
