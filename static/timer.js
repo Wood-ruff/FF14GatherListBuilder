@@ -179,8 +179,10 @@ function collectTimerEntries(now) {
   for (const timer of document.querySelectorAll(".node-timer")) {
     const row = timer.closest("tr");
     const nameElement = row ? row.querySelector(".copy-name") : null;
+    const amountField = row ? row.querySelector('input[name="amount"]') : null;
     entries.push({
       name: nameElement ? nameElement.dataset.name : "?",
+      amount: amountField ? amountField.value : "",
       spawn: nextSpawn(JSON.parse(timer.dataset.times), now),
       zone: timer.dataset.zone,
       x: timer.dataset.x,
@@ -232,7 +234,7 @@ function renderTimersOverview() {
 
     const info = document.createElement("div");
     const name = document.createElement("div");
-    name.textContent = entry.name;
+    name.textContent = entry.amount ? entry.name + " (" + entry.amount + ")" : entry.name;
     const location = document.createElement("div");
     location.className = "muted";
     location.textContent = timerEntryLocation(entry);
