@@ -74,6 +74,8 @@ def test_crystals_show_no_timer_and_timed_items_get_mute_toggle(client, monkeypa
         "times": [{"start": 600, "duration": 120}],
         "zone": "Living Memory",
         "aetheryte": None,
+        "x": 8.7,
+        "y": 7.5,
     }
     cluster = {"row_id": 16, "fields": {"Name": "Wind Cluster"}}
     leaf = {"row_id": 43930, "fields": {"Name": "Bay Leaf"}}
@@ -82,6 +84,8 @@ def test_crystals_show_no_timer_and_timed_items_get_mute_toggle(client, monkeypa
     client.post("/add", data={"list": "Demo", "item": "Wind Cluster", "amount": "3"})
     page = client.get("/?list=Demo").get_data(as_text=True)
     assert "node-timer" not in page
+    assert 'class="node-location"' in page
+    assert 'data-x="8.7"' in page
 
     monkeypatch.setattr("xivapi.fetch_item", lambda name: leaf)
     client.post("/add", data={"list": "Demo", "item": "Bay Leaf", "amount": "1"})
@@ -597,6 +601,15 @@ def test_ui_texts_follow_the_language(client):
     assert "Öffnen" in page
     page = client.get("/?list=Demo").get_data(as_text=True)
     assert "Hinzufügen" in page
+
+
+def test_refetch_list_via_post(client, monkeypatch):
+    refreshed = []
+    monkeypatch.setattr("routes.run_in_background", lambda task: task())
+    monkeypatch.setattr("lists.refresh_list_data", lambda name: refreshed.append(name))
+    response = client.post("/refetch-list", data={"list": "Demo"})
+    assert response.status_code == 302
+    assert refreshed == ["Demo"]
 
 
 def test_clear_cache_via_post(client, monkeypatch):

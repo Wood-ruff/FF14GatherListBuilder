@@ -463,6 +463,15 @@ def delete_list():
     return redirect(url_for("routes.show_list"))
 
 
+@routes.post("/refetch-list")
+def refetch_list():
+    """Queue re-fetching all game data of the selected list, then show it again."""
+    list_name = request.form.get("list", "").strip()
+    if list_name:
+        run_in_background(lambda: lists.refresh_list_data(list_name))
+    return redirect(url_for("routes.show_list", list=list_name))
+
+
 @routes.post("/clear-cache")
 def clear_cache():
     """Clear all cached api data, then show the current list again."""

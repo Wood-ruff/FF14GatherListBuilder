@@ -51,6 +51,10 @@
     "english": "Clear caches",
     "translation": ""
   },
+  "refetch_list": {
+    "english": "Re-fetch list data",
+    "translation": ""
+  },
   "clear_caches_confirm": {
     "english": "Clear all cached item data and icons?",
     "translation": ""
@@ -168,7 +172,11 @@
     "translation": ""
   },
   "header_node_materials": {
-    "english": "Node up / Materials added",
+    "english": "Node location / Materials added",
+    "translation": ""
+  },
+  "see_location": {
+    "english": "See location",
     "translation": ""
   },
   "header_game_id": {

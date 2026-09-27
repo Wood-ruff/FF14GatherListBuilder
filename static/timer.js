@@ -161,14 +161,22 @@ function setupModal() {
   });
 }
 
+function locationBody(element) {
+  const lines = [];
+  if (element.dataset.x) {
+    lines.push("(" + element.dataset.x + ", " + element.dataset.y + ")");
+  }
+  const aetheryte = element.dataset.aetheryte;
+  lines.push(aetheryte
+    ? msg("modal_aetheryte", "Closest aetheryte: ") + aetheryte
+    : msg("modal_no_aetheryte", "No aetheryte data"));
+  return lines.join("\n");
+}
+
 function setupTimerClicks() {
-  for (const timer of document.querySelectorAll(".node-timer")) {
-    timer.addEventListener("click", function () {
-      const aetheryte = timer.dataset.aetheryte;
-      const body = aetheryte
-        ? msg("modal_aetheryte", "Closest aetheryte: ") + aetheryte
-        : msg("modal_no_aetheryte", "No aetheryte data");
-      openModal(timer.dataset.zone, body);
+  for (const element of document.querySelectorAll(".node-timer, .node-location")) {
+    element.addEventListener("click", function () {
+      openModal(element.dataset.zone, locationBody(element));
     });
   }
 }

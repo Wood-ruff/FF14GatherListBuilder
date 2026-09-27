@@ -318,10 +318,13 @@ NODE_POINT_ROW = [{
             "fields": {
                 "PlaceName": {"fields": {"Name": "Living Memory"}},
                 "Aetheryte": {"row_id": 213, "fields": {"PlaceName": {"fields": {"Name": "Leynode Mnemo"}}}},
+                "Map": {"fields": {"SizeFactor": 100, "OffsetX": 0, "OffsetY": 0}},
             },
         },
     },
 }]
+
+EXPORTED_ROW = {"row_id": 1029, "fields": {"X": -637.213, "Y": -699.634}}
 
 TRANSIENT_ROW = {
     "row_id": 34989,
@@ -339,6 +342,8 @@ TRANSIENT_ROW = {
 def gathering_api(url, params=None, **kwargs):
     if "sheet/GatheringPointTransient" in url:
         return FakeResponse(TRANSIENT_ROW)
+    if "sheet/ExportedGatheringPoint/" in url:
+        return FakeResponse(EXPORTED_ROW)
     sheet = params.get("sheets") if params else None
     if sheet == "GatheringItem":
         return item_search_response(GATHERING_ITEM_ROW)
@@ -358,6 +363,8 @@ def test_fetch_gathering_returns_timed_node_info(monkeypatch):
         "zone": "Living Memory",
         "aetheryte": "Leynode Mnemo",
         "job_ids": [3],
+        "x": 8.7,
+        "y": 7.5,
     }
 
 
@@ -378,7 +385,10 @@ def test_cached_node_answers_for_other_items_in_it(monkeypatch):
 def test_ungatherable_item_is_marked_in_cache(monkeypatch):
     monkeypatch.setattr("requests.get", lambda *a, **k: item_search_response([]))
     info = xivapi.fetch_gathering(5111)
-    assert info == {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": []}
+    assert info == {
+        "timed": False, "times": [], "zone": None, "aetheryte": None,
+        "job_ids": [], "x": None, "y": None,
+    }
     assert item_cache.load_cache()["gathering:5111"]["result"]["timed"] is False
 
 
@@ -606,7 +616,8 @@ def test_old_shape_cached_recipe_is_refetched(monkeypatch):
 
 
 def test_crystal_with_one_gathering_job_is_refetched(monkeypatch):
-    single = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": [3]}
+    single = {"timed": False, "times": [], "zone": None, "aetheryte": None,
+              "job_ids": [3], "x": None, "y": None}
     item_cache.store_result("16", single, "gathering")
     calls = []
 
@@ -626,7 +637,7 @@ def test_crystal_with_one_gathering_job_is_refetched(monkeypatch):
 
 def test_crystals_skip_the_cached_node_shortcut(monkeypatch):
     node = {"base_id": 1029, "items": [16, 43930], "zone": "Somewhere",
-            "aetheryte": None, "times": [], "job_id": 3}
+            "aetheryte": None, "times": [], "job_id": 3, "x": 8.7, "y": 7.5}
     item_cache.store_result("1029", node, "node")
     monkeypatch.setattr("requests.get", gathering_api)
     assert xivapi.fetch_gathering(16)["job_ids"] == [3]

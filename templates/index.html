@@ -104,12 +104,21 @@
               <span class="node-timer" data-alarm="1" data-times='{{ item.gathering.times | tojson }}'
                     data-zone="{{ item.gathering.zone or "?" }}"
                     data-aetheryte="{{ item.gathering.aetheryte or "" }}"
+                    data-x="{{ item.gathering.x if item.gathering.x is not none else '' }}"
+                    data-y="{{ item.gathering.y if item.gathering.y is not none else '' }}"
                     title="{{ t('timer_tooltip') }}">…</span>
               <input type="checkbox" class="mute-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
                      {% if item.muted %}checked{% endif %} title="{{ t('mute_tooltip') }}">
               {% elif item.craftable %}
               <input type="checkbox" class="materials-toggle" data-list="{{ selected }}" data-id="{{ item.id }}"
                      {% if item.materials_added %}checked{% endif %} title="{{ t('materials_tooltip') }}">
+              {% elif item.gathering and item.gathering.zone %}
+              <button type="button" class="node-location"
+                      data-zone="{{ item.gathering.zone }}"
+                      data-aetheryte="{{ item.gathering.aetheryte or "" }}"
+                      data-x="{{ item.gathering.x if item.gathering.x is not none else '' }}"
+                      data-y="{{ item.gathering.y if item.gathering.y is not none else '' }}"
+                      title="{{ t('timer_tooltip') }}">{{ t("see_location") }}</button>
               {% else %}
               <span class="muted">—</span>
               {% endif %}

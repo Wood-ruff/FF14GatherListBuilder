@@ -246,10 +246,13 @@ def list_needs_data(list_name):
 
 
 def item_needs_data(item):
-    """Check whether an item has a game id but incomplete job symbols."""
+    """Check whether an item has a game id but incomplete game data."""
     if item.get("game_id") is None:
         return False
     if not item.get("job_icons"):
+        return True
+    gathering = item.get("gathering")
+    if gathering is not None and "x" not in gathering:
         return True
     return is_crystal(item) and len(item["job_icons"]) < 2
 

@@ -21,7 +21,7 @@ API_STATUS = {"last_call_failed": False}
 
 NO_TIME = 65535
 CRYSTAL_GAME_IDS = range(2, 20)
-NO_NODE = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": []}
+NO_NODE = {"timed": False, "times": [], "zone": None, "aetheryte": None, "job_ids": [], "x": None, "y": None}
 
 LOG = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ def fetch_gathering(game_id):
     if game_id in GATHERING:
         return GATHERING[game_id]
     info = item_cache.get_fresh_result(str(game_id), "gathering")
-    if info is not None and not isinstance(info.get("job_ids"), list):
+    if info is not None and (not isinstance(info.get("job_ids"), list) or "x" not in info):
         info = None
     if info is not None and game_id in CRYSTAL_GAME_IDS and len(info["job_ids"]) < 2:
         info = None
@@ -208,7 +208,7 @@ def find_in_cached_nodes(game_id):
         if entry.get("type") != "node" or item_cache.is_expired(entry["fetchdate"]):
             continue
         node = entry["result"]
-        if "job_id" in node and game_id in node["items"]:
+        if "job_id" in node and "x" in node and game_id in node["items"]:
             return item_info_from_node(node)
     return None
 
@@ -221,6 +221,8 @@ def item_info_from_node(node):
         "zone": node["zone"],
         "aetheryte": node["aetheryte"],
         "job_ids": [node["job_id"]],
+        "x": node.get("x"),
+        "y": node.get("y"),
     }
 
 
@@ -261,11 +263,12 @@ def distinct_gathering_jobs(bases):
 
 
 def lookup_node(base):
-    """Fetch one gathering node with its member items, zone, aetheryte and times."""
+    """Fetch one gathering node with its items, zone, aetheryte, position and times."""
     points = search_rows(
         "GatheringPoint",
         f"GatheringPointBase={base['row_id']}",
-        "TerritoryType.PlaceName.Name,TerritoryType.Aetheryte.PlaceName.Name",
+        "TerritoryType.PlaceName.Name,TerritoryType.Aetheryte.PlaceName.Name,"
+        "TerritoryType.Map.SizeFactor,TerritoryType.Map.OffsetX,TerritoryType.Map.OffsetY",
     )
     if points is None:
         return None
@@ -275,6 +278,7 @@ def lookup_node(base):
     if times is None:
         return None
     territory = points[0]["fields"]["TerritoryType"]["fields"]
+    x, y = node_map_position(base["row_id"], territory)
     return {
         "base_id": base["row_id"],
         "items": node_member_ids(base),
@@ -282,7 +286,23 @@ def lookup_node(base):
         "aetheryte": territory_aetheryte_name(territory),
         "times": times,
         "job_id": base["fields"]["GatheringType"]["row_id"],
+        "x": x,
+        "y": y,
     }
+
+
+def node_map_position(base_id, territory):
+    """Return the node's in game map coordinates, or None pair without position data."""
+    url = f"{SHEET_URL}/ExportedGatheringPoint/{base_id}"
+    LOG.info("calling xivapi: %s", url)
+    data = fetch_optional_json(url, {"fields": "X,Y"})
+    if data is None:
+        return None, None
+    map_fields = territory.get("Map", {}).get("fields", {})
+    size_factor = map_fields.get("SizeFactor", 100)
+    x = to_map_coord(data["fields"]["X"], map_fields.get("OffsetX", 0), size_factor)
+    y = to_map_coord(data["fields"]["Y"], map_fields.get("OffsetY", 0), size_factor)
+    return x, y
 
 
 def node_member_ids(base):
@@ -385,6 +405,8 @@ def store_gathering_markers(entries):
             "zone": entry["zone"],
             "aetheryte": entry["aetheryte"],
             "job_ids": [entry["job_id"]] if entry["job_id"] is not None else [],
+            "x": entry["x"],
+            "y": entry["y"],
         }
     item_cache.store_results(markers, "gathering")
 
@@ -767,6 +789,16 @@ def get_json(url, params):
         API_STATUS["last_call_failed"] = True
         return None
     API_STATUS["last_call_failed"] = False
+    return response.json()
+
+
+def fetch_optional_json(url, params):
+    """Fetch json where a missing row is expected and does not count as an api failure."""
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException:
+        return None
     return response.json()
 
 

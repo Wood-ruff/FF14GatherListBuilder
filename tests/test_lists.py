@@ -413,6 +413,17 @@ def test_item_model_matches_new_items(tmp_path, monkeypatch):
     assert set(item.keys()) - display_only == set(lists.load_item_model().keys())
 
 
+def test_items_with_old_gathering_shape_need_data():
+    old_shape = {
+        "game_id": 43930,
+        "job_icons": [{"type": "gather", "icon": 3}],
+        "gathering": {"timed": True, "times": [], "zone": "Somewhere", "aetheryte": None},
+    }
+    new_shape = dict(old_shape, gathering=dict(old_shape["gathering"], x=8.7, y=7.5))
+    assert lists.item_needs_data(old_shape)
+    assert not lists.item_needs_data(new_shape)
+
+
 def test_crystals_need_data_until_both_jobs_are_known():
     one_job = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 3}]}
     both_jobs = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 0}, {"type": "gather", "icon": 3}]}

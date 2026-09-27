@@ -38,10 +38,16 @@
         </select>
         <button type="submit" class="secondary">{{ t("language_set") }}</button>
       </form>
-      <form method="post" action="/clear-cache" onsubmit="return confirm('{{ t('clear_caches_confirm') }}')">
-        <input type="hidden" name="list" value="{{ selected }}">
-        <button type="submit" class="danger">{{ t("clear_caches") }}</button>
-      </form>
+      <div class="switch-stack">
+        <form method="post" action="/clear-cache" onsubmit="return confirm('{{ t('clear_caches_confirm') }}')">
+          <input type="hidden" name="list" value="{{ selected }}">
+          <button type="submit" class="danger">{{ t("clear_caches") }}</button>
+        </form>
+        <form method="post" action="/refetch-list">
+          <input type="hidden" name="list" value="{{ selected }}">
+          <button type="submit" class="secondary" {% if not selected %}disabled{% endif %}>{{ t("refetch_list") }}</button>
+        </form>
+      </div>
     </div>
   </header>
 

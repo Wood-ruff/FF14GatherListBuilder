@@ -44,6 +44,15 @@ header {
   right: 24px;
   display: flex;
   gap: 16px;
+  align-items: flex-start;
+}
+
+.top-right .switch-stack {
+  align-items: stretch;
+}
+
+.top-right .switch-stack button {
+  width: 100%;
 }
 
 .top-left {
@@ -744,6 +753,21 @@ tr.done .copy-name {
 .modal-box p {
   margin: 0 0 16px;
   color: var(--text-muted);
+  white-space: pre-line;
+}
+
+.node-location {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-hover);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.node-location:hover {
+  background: none;
+  text-decoration: underline;
 }
 
 .node-timer.open {
