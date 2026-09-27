@@ -315,6 +315,7 @@ NODE_POINT_ROW = [{
     "row_id": 34989,
     "fields": {
         "TerritoryType": {
+            "row_id": 1192,
             "fields": {
                 "PlaceName": {"fields": {"Name": "Living Memory"}},
                 "Aetheryte": {"row_id": 213, "fields": {"PlaceName": {"fields": {"Name": "Leynode Mnemo"}}}},
@@ -325,6 +326,13 @@ NODE_POINT_ROW = [{
 }]
 
 EXPORTED_ROW = {"row_id": 1029, "fields": {"X": -637.213, "Y": -699.634}}
+
+MARKER_ROWS = [
+    {"row_id": 700, "fields": {"X": 385, "Y": 325,
+     "DataKey": {"fields": {"PlaceName": {"fields": {"Name": "Near Aetheryte"}}}}}},
+    {"row_id": 700, "fields": {"X": 1800, "Y": 1800,
+     "DataKey": {"fields": {"PlaceName": {"fields": {"Name": "Far Aetheryte"}}}}}},
+]
 
 TRANSIENT_ROW = {
     "row_id": 34989,
@@ -344,6 +352,8 @@ def gathering_api(url, params=None, **kwargs):
         return FakeResponse(TRANSIENT_ROW)
     if "sheet/ExportedGatheringPoint/" in url:
         return FakeResponse(EXPORTED_ROW)
+    if params and params.get("sheets") == "MapMarker":
+        return item_search_response(MARKER_ROWS)
     sheet = params.get("sheets") if params else None
     if sheet == "GatheringItem":
         return item_search_response(GATHERING_ITEM_ROW)
@@ -361,7 +371,7 @@ def test_fetch_gathering_returns_timed_node_info(monkeypatch):
         "timed": True,
         "times": [{"start": 600, "duration": 120}, {"start": 1320, "duration": 120}],
         "zone": "Living Memory",
-        "aetheryte": "Leynode Mnemo",
+        "aetheryte": "Near Aetheryte",
         "job_ids": [3],
         "x": 8.7,
         "y": 7.5,

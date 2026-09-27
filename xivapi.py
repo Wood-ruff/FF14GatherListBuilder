@@ -14,6 +14,7 @@ ID_CACHE = {}
 RECIPES = {}
 SUGGESTIONS = {}
 GATHERING = {}
+AETHERYTES = {}
 COLLECTABLES = {}
 CRAFTABLES = {}
 DOWNLOADED_ICONS = set()
@@ -38,6 +39,7 @@ def clear_cache():
     RECIPES.clear()
     SUGGESTIONS.clear()
     GATHERING.clear()
+    AETHERYTES.clear()
     COLLECTABLES.clear()
     CRAFTABLES.clear()
     DOWNLOADED_ICONS.clear()
@@ -278,12 +280,15 @@ def lookup_node(base):
     if times is None:
         return None
     territory = points[0]["fields"]["TerritoryType"]["fields"]
-    x, y = node_map_position(base["row_id"], territory)
+    territory_id = points[0]["fields"]["TerritoryType"]["row_id"]
+    map_fields = territory.get("Map", {}).get("fields", {})
+    x, y = node_map_position(base["row_id"], map_fields)
+    aetheryte = closest_aetheryte(territory_id, map_fields.get("SizeFactor", 100), x, y)
     return {
         "base_id": base["row_id"],
         "items": node_member_ids(base),
         "zone": territory["PlaceName"]["fields"]["Name"],
-        "aetheryte": territory_aetheryte_name(territory),
+        "aetheryte": aetheryte or territory_aetheryte_name(territory),
         "times": times,
         "job_id": base["fields"]["GatheringType"]["row_id"],
         "x": x,
@@ -291,18 +296,63 @@ def lookup_node(base):
     }
 
 
-def node_map_position(base_id, territory):
+def node_map_position(base_id, map_fields):
     """Return the node's in game map coordinates, or None pair without position data."""
     url = f"{SHEET_URL}/ExportedGatheringPoint/{base_id}"
     LOG.info("calling xivapi: %s", url)
     data = fetch_optional_json(url, {"fields": "X,Y"})
     if data is None:
         return None, None
-    map_fields = territory.get("Map", {}).get("fields", {})
     size_factor = map_fields.get("SizeFactor", 100)
     x = to_map_coord(data["fields"]["X"], map_fields.get("OffsetX", 0), size_factor)
     y = to_map_coord(data["fields"]["Y"], map_fields.get("OffsetY", 0), size_factor)
     return x, y
+
+
+def closest_aetheryte(territory_id, size_factor, x, y):
+    """Return the name of the aetheryte nearest to the map position, or None."""
+    if x is None:
+        return None
+    aetherytes = fetch_zone_aetherytes(territory_id, size_factor)
+    if not aetherytes:
+        return None
+    nearest = min(aetherytes, key=lambda a: (a["x"] - x) ** 2 + (a["y"] - y) ** 2)
+    return nearest["name"]
+
+
+def fetch_zone_aetherytes(territory_id, size_factor):
+    """Return the zone's aetherytes with map coordinates, cached per territory."""
+    key = f"{settings.get_language()}:{territory_id}"
+    if key in AETHERYTES:
+        return AETHERYTES[key]
+    data = item_cache.get_fresh_result(key, "aetherytes")
+    if data is None:
+        data = lookup_zone_aetherytes(territory_id, size_factor)
+        if data is not None:
+            item_cache.store_result(key, data, "aetherytes")
+    AETHERYTES[key] = data
+    return data
+
+
+def lookup_zone_aetherytes(territory_id, size_factor):
+    """Fetch the zone's aetheryte map markers from the api."""
+    rows = search_rows(
+        "MapMarker", f"+DataType=3 +DataKey.Territory={territory_id}",
+        "X,Y,DataKey.PlaceName.Name", limit=20,
+    )
+    if rows is None:
+        return None
+    scale = 41 / (size_factor / 100)
+    aetherytes = []
+    for row in rows:
+        name = row["fields"]["DataKey"].get("fields", {}).get("PlaceName", {}).get("fields", {}).get("Name")
+        if name:
+            aetherytes.append({
+                "name": name,
+                "x": round(row["fields"]["X"] / 2048 * scale + 1, 1),
+                "y": round(row["fields"]["Y"] / 2048 * scale + 1, 1),
+            })
+    return aetherytes
 
 
 def node_member_ids(base):
