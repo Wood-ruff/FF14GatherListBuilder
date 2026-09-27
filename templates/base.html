@@ -6,6 +6,12 @@
   <title>FF14 Gather List Builder</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <script>
+    window.MESSAGES = {{ ui_messages | tojson }};
+    window.BACKGROUNDS = {{ backgrounds | tojson }};
+    window.msg = function (code, fallback) { return window.MESSAGES[code] || fallback; };
+  </script>
+  <script src="{{ url_for('static', filename='background.js') }}"></script>
 </head>
 <body>
   <header>
@@ -76,12 +82,6 @@
     </div>
   </div>
 
-  <script>
-    window.MESSAGES = {{ ui_messages | tojson }};
-    window.BACKGROUNDS = {{ backgrounds | tojson }};
-    window.msg = function (code, fallback) { return window.MESSAGES[code] || fallback; };
-  </script>
-  <script src="{{ url_for('static', filename='background.js') }}"></script>
   <script src="{{ url_for('static', filename='suggest.js') }}"></script>
   <script src="{{ url_for('static', filename='copy.js') }}"></script>
   <script src="{{ url_for('static', filename='ajax-add.js') }}"></script>

@@ -13,12 +13,14 @@ function pickBackground() {
       sessionStorage.setItem("background", chosen);
     } catch (error) {}
   }
-  document.body.style.backgroundImage =
+  const root = document.documentElement;
+  root.classList.add("bg-image");
+  root.style.backgroundImage =
     "linear-gradient(rgba(22, 16, 15, 0.82), rgba(22, 16, 15, 0.82)), url('/static/backgrounds/" +
     encodeURIComponent(chosen) + "')";
-  document.body.style.backgroundSize = "cover";
-  document.body.style.backgroundAttachment = "fixed";
-  document.body.style.backgroundPosition = "center";
+  root.style.backgroundSize = "cover";
+  root.style.backgroundAttachment = "fixed";
+  root.style.backgroundPosition = "center";
 }
 
 pickBackground();

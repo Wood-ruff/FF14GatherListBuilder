@@ -16,6 +16,14 @@
   display: none !important;
 }
 
+html {
+  overflow-y: scroll;
+}
+
+html.bg-image body {
+  background: transparent;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -695,6 +703,10 @@ tr.done .copy-name {
 .node-timer {
   cursor: pointer;
   white-space: nowrap;
+  display: inline-block;
+  min-width: 12.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .modal {
