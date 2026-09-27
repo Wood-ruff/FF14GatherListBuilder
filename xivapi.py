@@ -99,19 +99,41 @@ def icon_folder():
     return item_cache.ICONS_DIR
 
 
+NO_RECIPE = {"no_recipe": True}
+
+
 def fetch_recipe(item_name):
     """Return the recipe for a craftable item from memory, the cache file, or the api."""
     key = item_name.lower()
     if key in RECIPES:
         return RECIPES[key]
-    recipe = item_cache.get_fresh_result(item_name, "recipe")
-    if recipe and "craft_types" not in recipe:
+    recipe = cached_recipe(item_name)
+    if recipe is None:
+        recipe = lookup_and_store_recipe(item_name)
+    if recipe == NO_RECIPE:
         recipe = None
-    if not recipe:
-        recipe = lookup_recipe(item_name)
-        if recipe:
-            item_cache.store_result(item_name, recipe, "recipe")
     RECIPES[key] = recipe
+    return recipe
+
+
+def cached_recipe(item_name):
+    """Return the file cached recipe, the no recipe marker, or None when unknown."""
+    cached = item_cache.get_fresh_result(item_name, "recipe")
+    if cached == NO_RECIPE:
+        return cached
+    if cached and "craft_types" not in cached:
+        return None
+    return cached
+
+
+def lookup_and_store_recipe(item_name):
+    """Look the recipe up at the api and cache the result, even a missing one."""
+    recipe = lookup_recipe(item_name)
+    if recipe:
+        item_cache.store_result(item_name, recipe, "recipe")
+    elif not last_call_failed():
+        item_cache.store_result(item_name, NO_RECIPE, "recipe")
+        return NO_RECIPE
     return recipe
 
 
@@ -808,11 +830,17 @@ def build_craftables(recipes, scrips):
 
 RAW_ITEM_FIELD = "Item@as(raw)"
 SPECIAL_SHOP_FIELDS = (
-    "Item[].Item@as(raw),Item[].ItemCost@as(raw),"
-    "Item[].Quest@as(raw),Item[].AchievementUnlock@as(raw)"
+    "Item[].Item@as(raw),Item[].ItemCost@as(raw),Item[].CurrencyCost,Item[].CostType,"
+    "Item[].ReceiveCount,Item[].Quest@as(raw),Item[].AchievementUnlock@as(raw)"
 )
 TRANSIENT_RAW_FIELDS = "EphemeralStartTime,GatheringRarePopTimeTable@as(raw)"
 BICOLOR_GEMSTONE_ID = 26807
+GIL_ITEM_ID = 1
+COST_TYPE_TOMESTONE = 2
+COST_TYPE_SCRIP = 3
+SCRIP_COST_INDEXES = {2: 33913, 4: 33914, 6: 41784, 7: 41785}
+SCRIP_ITEM_IDS = set(SCRIP_COST_INDEXES.values())
+REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency")
 
 
 def fetch_material_sources():
@@ -820,7 +848,7 @@ def fetch_material_sources():
     if MATERIAL_SOURCES:
         return dict(MATERIAL_SOURCES)
     data = item_cache.get_fresh_result("all", "material_sources")
-    if data and ("timed" not in data or "gemstone" not in data):
+    if data and any(key not in data for key in REQUIRED_SOURCE_KEYS):
         data = None
     if data is None:
         data = lookup_material_sources()
@@ -848,17 +876,26 @@ def lookup_material_sources():
     seals = sheet_item_ids("GCScripShopItem")
     if seals is None:
         return None
-    special = special_shop_items()
-    if special is None:
+    trades = special_shop_items()
+    if trades is None:
         return None
-    open_ids, locked_ids, gemstone_ids = special
     return {
         "gatherable": sorted(gatherable),
         "timed": sorted(timed),
         "gil": sorted(gil),
-        "special": sorted(open_ids | locked_ids | set(seals)),
-        "locked": sorted(locked_ids - open_ids - set(seals)),
-        "gemstone": sorted(gemstone_ids),
+        "special": sorted(trades["open"] | trades["locked"] | set(seals)),
+        "locked": sorted(trades["locked"] - trades["open"] - set(seals)),
+        "gemstone": sorted(trades["gemstone"] - trades["nongemstone"]),
+        "scrip": scrip_only_prices(trades),
+        "currency": trades["currency"],
+    }
+
+
+def scrip_only_prices(trades):
+    """Keep the scrip prices of the items that are sold for scrips alone."""
+    return {
+        item_id: info for item_id, info in trades["scrip"].items()
+        if int(item_id) not in trades["nonscrip"]
     }
 
 
@@ -968,35 +1005,90 @@ def sheet_item_ids(sheet):
 
 
 def special_shop_items():
-    """Collect special shop item ids: freely bought, unlock gated, gemstone only."""
+    """Collect special shop items by unlock gating, cost currency and scrip price."""
+    tomestones = tomestone_currency_ids()
+    if tomestones is None:
+        return None
     shops = sheet_rows("SpecialShop", SPECIAL_SHOP_FIELDS, limit=100)
     if shops is None:
         return None
-    open_ids = set()
-    locked_ids = set()
-    gemstone_ids = set()
-    other_ids = set()
+    trades = {
+        "open": set(), "locked": set(),
+        "gemstone": set(), "nongemstone": set(),
+        "scrip": {}, "nonscrip": set(),
+        "currency": {},
+    }
     for fields in shops.values():
-        collect_special_trades(fields["Item"], open_ids, locked_ids, gemstone_ids, other_ids)
-    return open_ids, locked_ids, gemstone_ids - other_ids
+        for trade in fields["Item"]:
+            collect_special_trade(trade, trades, tomestones)
+    return trades
 
 
-def collect_special_trades(trades, open_ids, locked_ids, gemstone_ids, other_ids):
-    """Sort one shop's received item ids by unlock gating and by cost currency."""
-    for trade in trades:
-        gated = trade.get("Quest@as(raw)", 0) > 0 or trade.get("AchievementUnlock@as(raw)", 0) > 0
-        costs = {cost for cost in trade.get("ItemCost@as(raw)", []) if cost > 0}
-        for item_id in trade.get(RAW_ITEM_FIELD, []):
-            if item_id <= 0:
-                continue
-            if gated:
-                locked_ids.add(item_id)
-            else:
-                open_ids.add(item_id)
-            if costs == {BICOLOR_GEMSTONE_ID}:
-                gemstone_ids.add(item_id)
-            else:
-                other_ids.add(item_id)
+def tomestone_currency_ids():
+    """Map tomestone cost indexes to their currency item ids."""
+    rows = sheet_rows("TomestonesItem", "Item@as(raw),Tomestones@as(raw)")
+    if rows is None:
+        return None
+    mapping = {}
+    for fields in rows.values():
+        if fields["Tomestones@as(raw)"] > 0 and fields[RAW_ITEM_FIELD] > 0:
+            mapping[fields["Tomestones@as(raw)"]] = fields[RAW_ITEM_FIELD]
+    return mapping
+
+
+def collect_special_trade(trade, trades, tomestones):
+    """Sort one trade's received items by unlock gating and by cost currency."""
+    gated = trade.get("Quest@as(raw)", 0) > 0 or trade.get("AchievementUnlock@as(raw)", 0) > 0
+    costs = trade_costs(trade, tomestones)
+    cost_ids = {cost_id for cost_id, _amount in costs if cost_id}
+    for slot, item_id in enumerate(trade.get(RAW_ITEM_FIELD, [])):
+        if item_id <= 0:
+            continue
+        trades["locked" if gated else "open"].add(item_id)
+        if cost_ids:
+            trades["currency"].setdefault(str(item_id), costs[0][0])
+        if cost_ids == {BICOLOR_GEMSTONE_ID}:
+            trades["gemstone"].add(item_id)
+        else:
+            trades["nongemstone"].add(item_id)
+        if cost_ids and cost_ids <= SCRIP_ITEM_IDS:
+            record_scrip_price(trades["scrip"], item_id, costs, trade, slot)
+        else:
+            trades["nonscrip"].add(item_id)
+
+
+def trade_costs(trade, tomestones):
+    """Resolve one trade's cost slots into currency item ids and amounts."""
+    types = trade.get("CostType", [])
+    ids = trade.get("ItemCost@as(raw)", [])
+    amounts = trade.get("CurrencyCost", [])
+    costs = []
+    for slot in range(min(len(ids), len(amounts))):
+        if amounts[slot] <= 0 or ids[slot] <= 0:
+            continue
+        cost_type = types[slot] if slot < len(types) else 0
+        costs.append((resolve_cost_item(cost_type, ids[slot], tomestones), amounts[slot]))
+    return costs
+
+
+def resolve_cost_item(cost_type, cost_value, tomestones):
+    """Return a cost slot's currency item id, translating indexed currencies."""
+    if cost_type == COST_TYPE_SCRIP:
+        return SCRIP_COST_INDEXES.get(cost_value)
+    if cost_type == COST_TYPE_TOMESTONE:
+        return tomestones.get(cost_value)
+    return cost_value
+
+
+def record_scrip_price(prices, item_id, costs, trade, slot):
+    """Remember the cheapest scrip price and bundle size of one received item."""
+    price = sum(amount for cost_id, amount in costs if cost_id in SCRIP_ITEM_IDS)
+    currency = next(cost_id for cost_id, _amount in costs if cost_id in SCRIP_ITEM_IDS)
+    counts = trade.get("ReceiveCount", [])
+    bundle = max(counts[slot] if slot < len(counts) else 1, 1)
+    known = prices.get(str(item_id))
+    if known is None or price / bundle < known["price"] / known["bundle"]:
+        prices[str(item_id)] = {"price": price, "bundle": bundle, "currency": currency}
 
 
 def search_rows(sheet, query, fields=None, limit=1):

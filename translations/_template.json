@@ -83,6 +83,14 @@
     "english": "Gemstone vendors unlocked",
     "translation": ""
   },
+  "craft_costs_hide_loot": {
+    "english": "Hide mob drop recipes",
+    "translation": ""
+  },
+  "craft_costs_hide_locked": {
+    "english": "Hide locked vendor recipes",
+    "translation": ""
+  },
   "craft_costs_gil": {
     "english": "gil vendor",
     "translation": ""
@@ -105,6 +113,18 @@
   },
   "craft_costs_timed": {
     "english": "timed node",
+    "translation": ""
+  },
+  "craft_costs_scrip_mat": {
+    "english": "{price} scrips each",
+    "translation": ""
+  },
+  "craft_costs_scrip_bundle": {
+    "english": "{price} scrips per {bundle}",
+    "translation": ""
+  },
+  "craft_costs_scrips_net": {
+    "english": "{scrips} − {paid} paid = {net} scrips",
     "translation": ""
   },
   "alarm_mark_tooltip": {

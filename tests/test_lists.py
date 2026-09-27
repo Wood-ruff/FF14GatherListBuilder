@@ -590,6 +590,13 @@ def source_craftable(game_id, name, mat_id):
             "ingredients": [{"name": name + " Mat", "game_id": mat_id, "amount": 10}]}
 
 
+def fake_sources(**overrides):
+    sources = {"gatherable": [], "timed": [], "gil": [], "special": [],
+               "locked": [], "gemstone": [], "scrip": {}, "currency": {}}
+    sources.update(overrides)
+    return sources
+
+
 def test_craft_costs_weigh_and_mark_material_sources(monkeypatch):
     craftables = [
         source_craftable(1, "Gathered", 100),
@@ -598,8 +605,7 @@ def test_craft_costs_weigh_and_mark_material_sources(monkeypatch):
         source_craftable(4, "Traded", 103),
         source_craftable(5, "Locked Trade", 104),
     ]
-    sources = {"gatherable": [100], "timed": [], "gil": [102], "special": [103, 104],
-               "locked": [104], "gemstone": []}
+    sources = fake_sources(gatherable=[100], gil=[102], special=[103, 104], locked=[104])
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
     entries = lists.get_craft_costs(100, "all", True)
@@ -620,12 +626,13 @@ def test_craft_costs_weigh_and_mark_material_sources(monkeypatch):
 def test_craft_costs_expand_crafted_intermediates_to_base_materials(monkeypatch):
     craftable = dict(source_craftable(1, "Hat", 45978),
                      ingredients=[{"name": "Diatryma Felt", "game_id": 45978, "amount": 3}])
-    sources = {"gatherable": [5111], "timed": [], "gil": [], "special": [], "locked": [], "gemstone": []}
+    sources = fake_sources(gatherable=[5111])
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: [craftable])
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
     entry = lists.get_craft_costs(100, "all", True)[0]
     assert entry["materials"] == [
-        {"name": "Iron Ore", "game_id": 5111, "amount": 8, "source": "gather", "locked": False, "timed": False}
+        {"name": "Iron Ore", "game_id": 5111, "amount": 8, "source": "gather",
+         "locked": False, "timed": False, "scrip": None, "currency": None}
     ]
     assert entry["has_loot"] is False
     assert entry["cost"] == 18
@@ -633,8 +640,7 @@ def test_craft_costs_expand_crafted_intermediates_to_base_materials(monkeypatch)
 
 def test_craft_costs_treat_gemstone_items_like_loot(monkeypatch):
     craftables = [source_craftable(1, "Hide Craft", 100), source_craftable(2, "Token Craft", 101)]
-    sources = {"gatherable": [], "timed": [], "gil": [], "special": [100, 101],
-               "locked": [], "gemstone": [100]}
+    sources = fake_sources(special=[100, 101], gemstone=[100])
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
     entries = lists.get_craft_costs(100, "all", True)
@@ -646,8 +652,7 @@ def test_craft_costs_treat_gemstone_items_like_loot(monkeypatch):
 
 def test_craft_costs_gemstone_toggle_makes_them_cheap(monkeypatch):
     craftables = [source_craftable(1, "Hide Craft", 100)]
-    sources = {"gatherable": [], "timed": [], "gil": [], "special": [100],
-               "locked": [], "gemstone": [100]}
+    sources = fake_sources(special=[100], gemstone=[100])
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
     entry = lists.get_craft_costs(100, "all", True, gemstones_unlocked=True)[0]
@@ -658,13 +663,79 @@ def test_craft_costs_gemstone_toggle_makes_them_cheap(monkeypatch):
 
 def test_craft_costs_raise_effort_for_timed_nodes(monkeypatch):
     craftables = [source_craftable(1, "Timed", 100), source_craftable(2, "Untimed", 101)]
-    sources = {"gatherable": [100, 101], "timed": [100], "gil": [], "special": [], "locked": [], "gemstone": []}
+    sources = fake_sources(gatherable=[100, 101], timed=[100])
     monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
     entries = lists.get_craft_costs(100, "all", True)
     assert [(e["name"], e["cost"]) for e in entries] == [("Untimed", 20), ("Timed", 30)]
     assert entries[1]["materials"][0]["timed"] is True
     assert entries[0]["materials"][0]["timed"] is False
+
+
+def test_craft_costs_subtract_scrips_paid_for_materials(monkeypatch):
+    craftables = [source_craftable(1, "Scrip Craft", 100)]
+    sources = fake_sources(special=[100], scrip={"100": {"price": 2, "bundle": 1, "currency": 33913}})
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+    entry = lists.get_craft_costs(100, "all", True)[0]
+    assert entry["scrips"] == 50
+    assert entry["scrip_paid"] == 20
+    assert entry["net_scrips"] == 30
+    assert entry["cost"] == 15
+    assert entry["score"] == 0.5
+    assert entry["materials"][0]["source"] == "scrip"
+    assert entry["materials"][0]["currency"] == 33913
+
+
+def test_craft_costs_skip_recipes_that_pay_more_scrips_than_they_yield(monkeypatch):
+    craftables = [source_craftable(1, "Bad Deal", 100)]
+    sources = fake_sources(special=[100], scrip={"100": {"price": 5, "bundle": 1, "currency": 33913}})
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+    assert lists.get_craft_costs(100, "all", True) == []
+
+
+def test_craft_costs_scrip_bundles_are_paid_whole(monkeypatch):
+    craftables = [source_craftable(1, "Bundle Craft", 100)]
+    sources = fake_sources(special=[100], scrip={"100": {"price": 9, "bundle": 3, "currency": 33913}})
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+    entry = lists.get_craft_costs(100, "all", True)[0]
+    assert entry["scrip_paid"] == 36
+    assert entry["net_scrips"] == 14
+
+
+def test_craft_costs_hide_filters_drop_unobtainable_recipes(monkeypatch):
+    craftables = [
+        source_craftable(1, "Gathered", 100),
+        source_craftable(2, "Looted", 101),
+        source_craftable(3, "Locked Trade", 102),
+        source_craftable(4, "Gemstone", 103),
+    ]
+    sources = fake_sources(gatherable=[100], special=[102, 103], locked=[102], gemstone=[103])
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: craftables)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+
+    def names(**kwargs):
+        return sorted(e["name"] for e in lists.get_craft_costs(100, "all", True, **kwargs))
+
+    assert names(hide_loot=True) == ["Gathered", "Gemstone", "Locked Trade"]
+    assert names(hide_locked=True) == ["Gathered", "Gemstone", "Looted"]
+    assert names(hide_loot=True, hide_locked=True) == ["Gathered"]
+    assert names(hide_loot=True, hide_locked=True, gemstones_unlocked=True) == ["Gathered", "Gemstone"]
+
+
+def test_craft_costs_sort_crystals_last(monkeypatch):
+    craftable = dict(source_craftable(1, "Mixed", 100), ingredients=[
+        {"name": "Ice Crystal", "game_id": 9, "amount": 8},
+        {"name": "Ore", "game_id": 100, "amount": 4},
+        {"name": "Fire Crystal", "game_id": 8, "amount": 8},
+        {"name": "Log", "game_id": 101, "amount": 5},
+    ])
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: [craftable])
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: fake_sources(gatherable=[100, 101]))
+    entry = lists.get_craft_costs(100, "all", True)[0]
+    assert [m["name"] for m in entry["materials"]] == ["Ore", "Log", "Ice Crystal", "Fire Crystal"]
 
 
 def test_craft_costs_treat_everything_as_gathered_without_sources(monkeypatch):

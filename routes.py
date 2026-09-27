@@ -256,7 +256,11 @@ def craft_costs():
     job = request.args.get("job", "all")
     orange = request.args.get("scrips") == "orange"
     gemstones = request.args.get("gemstones") == "unlocked"
-    entries = lists.get_craft_costs(int(level) if level.isdigit() else 100, job, orange, gemstones)
+    hide_loot = request.args.get("hideloot") == "1"
+    hide_locked = request.args.get("hidelocked") == "1"
+    entries = lists.get_craft_costs(
+        int(level) if level.isdigit() else 100, job, orange, gemstones, hide_loot, hide_locked
+    )
     return jsonify(entries)
 
 

@@ -653,9 +653,15 @@ SPECIAL_SHOP_PAGE = {"rows": [
         {"Item@as(raw)": [301, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
         {"Item@as(raw)": [302], "Quest@as(raw)": 70000, "AchievementUnlock@as(raw)": 0},
         {"Item@as(raw)": [301], "Quest@as(raw)": 70000, "AchievementUnlock@as(raw)": 0},
-        {"Item@as(raw)": [304], "ItemCost@as(raw)": [26807, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
-        {"Item@as(raw)": [305], "ItemCost@as(raw)": [26807, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
-        {"Item@as(raw)": [305], "ItemCost@as(raw)": [28, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [304], "ItemCost@as(raw)": [26807, 0], "CurrencyCost": [3, 0, 0],
+         "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [305], "ItemCost@as(raw)": [26807, 0], "CurrencyCost": [3, 0, 0],
+         "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [305], "ItemCost@as(raw)": [1, 0, 0], "CostType": [2, 0, 0],
+         "CurrencyCost": [100, 0, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [306, 0], "ItemCost@as(raw)": [2, 0, 0], "CostType": [3, 0, 0],
+         "CurrencyCost": [200, 0, 0], "ReceiveCount": [1, 1],
+         "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
     ]}},
 ]}
 
@@ -671,6 +677,10 @@ NODE_SHEET_PAGES = {
     "GatheringPoint": {"rows": [
         {"row_id": 900, "fields": {"GatheringPointBase@as(raw)": 500}},
         {"row_id": 901, "fields": {"GatheringPointBase@as(raw)": 501}},
+    ]},
+    "TomestonesItem": {"rows": [
+        {"row_id": 0, "fields": {"Item@as(raw)": 23, "Tomestones@as(raw)": 0}},
+        {"row_id": 3, "fields": {"Item@as(raw)": 28, "Tomestones@as(raw)": 1}},
     ]},
 }
 
@@ -693,9 +703,11 @@ def test_fetch_material_sources_classifies_item_ids(monkeypatch):
     assert sources["gatherable"] == [101, 102, 103, 104]
     assert sources["timed"] == [101]
     assert sources["gil"] == [101, 201]
-    assert sources["special"] == [301, 302, 303, 304, 305]
+    assert sources["special"] == [301, 302, 303, 304, 305, 306]
     assert sources["locked"] == [302]
     assert sources["gemstone"] == [304]
+    assert sources["scrip"] == {"306": {"price": 200, "bundle": 1, "currency": 33913}}
+    assert sources["currency"] == {"304": 26807, "305": 26807, "306": 33913}
 
 
 def test_timed_items_need_all_their_nodes_timed(monkeypatch):
@@ -745,6 +757,32 @@ def test_old_shape_cached_craftables_are_refetched(monkeypatch):
         {"name": "Beef Skirt Steak", "game_id": 44137, "amount": 2},
         {"name": "Fire Crystal", "game_id": 8, "amount": 1},
     ]
+
+
+def test_missing_recipes_are_cached_and_not_looked_up_again(monkeypatch):
+    monkeypatch.setattr("requests.get", fake_api)
+    assert xivapi.fetch_recipe("Iron Ore") is None
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.RECIPES.clear()
+    xivapi.CACHE.clear()
+    assert xivapi.fetch_recipe("Iron Ore") is None
+
+
+def test_failed_recipe_lookups_are_not_cached_as_missing(monkeypatch):
+    def broken_api(*args, **kwargs):
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr("requests.get", broken_api)
+    assert xivapi.fetch_recipe("Crested Headband") is None
+
+    monkeypatch.setattr("requests.get", fake_api)
+    xivapi.RECIPES.clear()
+    xivapi.CACHE.clear()
+    assert xivapi.fetch_recipe("Crested Headband") is not None
 
 
 def test_old_shape_cached_recipe_is_refetched(monkeypatch):
@@ -810,4 +848,4 @@ def test_fetch_recipe_for_uncraftable_item(monkeypatch):
 
     monkeypatch.setattr("requests.get", no_recipe_api)
     assert xivapi.fetch_recipe("Crested Headband") is None
-    assert "recipe:crested headband" not in item_cache.load_cache()
+    assert item_cache.load_cache()["recipe:crested headband"]["result"] == {"no_recipe": True}

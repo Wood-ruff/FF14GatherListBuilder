@@ -51,6 +51,14 @@
         <div class="modal-box timers-box">
           <h3>{{ t("craft_costs_button") }}</h3>
           <div class="filter-row">
+            <select id="craft-costs-target" title="{{ t('lists_heading') }}">
+              {% if not list_names %}<option value=""></option>{% endif %}
+              {% for name in list_names %}
+              <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-row">
             <input type="number" id="craft-costs-level" min="1" max="100" value="100" title="{{ t('header_level') }}">
             <select id="craft-costs-job">
               <option value="all">{{ t("all_jobs") }}</option>
@@ -65,7 +73,21 @@
               <input type="checkbox" id="craft-costs-gemstone"> {{ t("craft_costs_gemstone_toggle") }}
             </label>
           </div>
+          <div class="filter-row">
+            <label class="switch">
+              <input type="checkbox" id="craft-costs-hide-loot"> {{ t("craft_costs_hide_loot") }}
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="craft-costs-hide-locked"> {{ t("craft_costs_hide_locked") }}
+            </label>
+          </div>
+          <div id="craft-costs-spinner" class="spinner" hidden></div>
           <div id="craft-costs-list"></div>
+          <div id="craft-costs-pager" class="craft-pager" hidden>
+            <button type="button" id="craft-costs-prev" class="secondary">&lsaquo;</button>
+            <span id="craft-costs-page"></span>
+            <button type="button" id="craft-costs-next" class="secondary">&rsaquo;</button>
+          </div>
           <button type="button" id="craft-costs-close" class="secondary">{{ t("modal_close") }}</button>
         </div>
       </div>

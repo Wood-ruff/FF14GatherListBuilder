@@ -836,6 +836,56 @@ tr.done .copy-name {
   color: #e07a5f;
 }
 
+.currency-icon {
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 3px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  margin: 24px auto;
+  border: 3px solid #e3c878;
+  border-top-color: #8f6914;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.node-items .crystal-split {
+  margin-top: 6px;
+  padding-top: 6px;
+  position: relative;
+}
+
+.node-items .crystal-split::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 130px;
+  border-top: 1px solid var(--text-muted);
+}
+
+.craft-add {
+  flex-shrink: 0;
+}
+
+.craft-pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .node-items {
   text-align: right;
   color: var(--text-muted);
@@ -870,7 +920,7 @@ tr.done .copy-name {
   padding: 12px 20px;
   transform: translateX(calc(100% + 24px));
   transition: transform 0.3s ease;
-  z-index: 20;
+  z-index: 100;
 }
 
 .toast.show {

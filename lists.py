@@ -710,6 +710,7 @@ MATERIAL_COST_WEIGHTS = {
     "gather": 1,
     "gather_timed": 2,
     "gil": 0.5,
+    "scrip": 0.5,
     "special": 0.5,
     "special_locked": 6,
     "gemstone": 8,
@@ -718,7 +719,7 @@ MATERIAL_COST_WEIGHTS = {
 }
 
 
-def get_craft_costs(level, job, orange_scrips, gemstones_unlocked=False):
+def get_craft_costs(level, job, orange_scrips, gemstones_unlocked=False, hide_loot=False, hide_locked=False):
     """Return scrip craftables ranked by material cost per scrip, cheapest first."""
     sources = material_source_sets()
     entries = []
@@ -726,17 +727,54 @@ def get_craft_costs(level, job, orange_scrips, gemstones_unlocked=False):
         if not craft_level_matches(craftable["level"], level, orange_scrips):
             continue
         entry = craft_cost_entry(craftable, sources, gemstones_unlocked)
-        if entry:
+        if entry and not entry_blocked(entry, gemstones_unlocked, hide_loot, hide_locked):
             entries.append(entry)
+    ensure_currency_icons(entries)
     return sorted(entries, key=lambda entry: entry["score"])
 
 
+def entry_blocked(entry, gemstones_unlocked, hide_loot, hide_locked):
+    """Check whether any of the entry's materials is unobtainable under the filters."""
+    return any(
+        material_blocked(material, gemstones_unlocked, hide_loot, hide_locked)
+        for material in entry["materials"]
+    )
+
+
+def material_blocked(material, gemstones_unlocked, hide_loot, hide_locked):
+    """Check whether every way to get a material is switched off by the filters."""
+    if material["source"] == "loot":
+        return hide_loot
+    if material["source"] == "gemstone":
+        return hide_loot and hide_locked and not gemstones_unlocked
+    if material["locked"]:
+        return hide_locked
+    return False
+
+
+def ensure_currency_icons(entries):
+    """Make sure the icons of all cost currencies are cached."""
+    currencies = set()
+    for entry in entries:
+        for material in entry["materials"]:
+            if material["currency"]:
+                currencies.add(material["currency"])
+    for currency_id in currencies:
+        xivapi.fetch_item_by_id(currency_id)
+
+
 def material_source_sets():
-    """Return the acquisition source item id sets, or None while xivapi is unreachable."""
+    """Return the acquisition source lookups, or None while xivapi is unreachable."""
     sources = xivapi.fetch_material_sources()
     if sources is None:
         return None
-    return {key: set(ids) for key, ids in sources.items()}
+    lookups = {}
+    for key, values in sources.items():
+        if isinstance(values, dict):
+            lookups[key] = {int(item_id): value for item_id, value in values.items()}
+        else:
+            lookups[key] = set(values)
+    return lookups
 
 
 def craft_level_matches(craft_level, level, orange_scrips):
@@ -749,10 +787,14 @@ def craft_level_matches(craft_level, level, orange_scrips):
 
 
 def craft_cost_entry(craftable, sources, gemstones_unlocked):
-    """Build one cost entry with material counts and score, or None without recipe data."""
+    """Build one cost entry with material counts and score, or None when not worth it."""
     materials = craft_materials(craftable, sources)
     scrips = craftable["scrips"]["high"] * craftable.get("yields", 1)
     if not materials or scrips <= 0:
+        return None
+    paid = scrips_paid(materials)
+    net_scrips = scrips - paid
+    if net_scrips <= 0:
         return None
     cost = material_cost(materials, gemstones_unlocked)
     return {
@@ -762,22 +804,34 @@ def craft_cost_entry(craftable, sources, gemstones_unlocked):
         "level": craftable["level"],
         "stars": craftable["stars"],
         "scrips": scrips,
+        "scrip_paid": paid,
+        "net_scrips": net_scrips,
         "materials": materials,
         "unique_materials": sum(1 for m in materials if m["source"] != "crystal"),
         "total_materials": sum(m["amount"] for m in materials if m["source"] != "crystal"),
         "has_loot": any(is_looted(m, gemstones_unlocked) for m in materials),
         "has_locked": any(m["locked"] for m in materials),
         "cost": round(cost, 2),
-        "score": round(cost / scrips, 3),
+        "score": round(cost / net_scrips, 3),
     }
 
 
+def scrips_paid(materials):
+    """Sum the scrips spent on materials that are only sold for scrips."""
+    paid = 0
+    for material in materials:
+        scrip = material["scrip"]
+        if scrip:
+            paid += math.ceil(material["amount"] / scrip["bundle"]) * scrip["price"]
+    return paid
+
+
 def craft_materials(craftable, sources):
-    """Resolve the craftable's ingredients to base materials marked with their sources."""
+    """Resolve the craftable's ingredients to base materials, crystals sorted last."""
     totals = {}
     for ingredient in craftable.get("ingredients") or []:
         add_base_material(totals, ingredient, ingredient["amount"], sources, depth=0)
-    return list(totals.values())
+    return sorted(totals.values(), key=lambda material: material["source"] == "crystal")
 
 
 def add_base_material(totals, ingredient, amount, sources, depth):
@@ -790,15 +844,35 @@ def add_base_material(totals, ingredient, amount, sources, depth):
             for sub_ingredient in recipe["ingredients"]:
                 add_base_material(totals, sub_ingredient, sub_ingredient["amount"] * crafts, sources, depth + 1)
             return
-    entry = totals.setdefault(ingredient["game_id"], {
+    entry = totals.setdefault(ingredient["game_id"], new_material(ingredient, source, sources))
+    entry["amount"] += amount
+
+
+def new_material(ingredient, source, sources):
+    """Build one base material entry with its source details."""
+    game_id = ingredient["game_id"]
+    scrip = sources["scrip"].get(game_id) if source == "scrip" else None
+    return {
         "name": ingredient["name"],
-        "game_id": ingredient["game_id"],
+        "game_id": game_id,
         "amount": 0,
         "source": source,
-        "locked": source == "special" and ingredient["game_id"] in sources["locked"],
-        "timed": sources is not None and source == "gather" and ingredient["game_id"] in sources["timed"],
-    })
-    entry["amount"] += amount
+        "locked": source == "special" and game_id in sources["locked"],
+        "timed": sources is not None and source == "gather" and game_id in sources["timed"],
+        "scrip": scrip,
+        "currency": material_currency(game_id, source, sources, scrip),
+    }
+
+
+def material_currency(game_id, source, sources, scrip):
+    """Return the currency item id a bought material is paid with, or None."""
+    if source == "gil":
+        return xivapi.GIL_ITEM_ID
+    if scrip:
+        return scrip["currency"]
+    if source in ("gemstone", "special"):
+        return sources["currency"].get(game_id)
+    return None
 
 
 def material_source(game_id, sources):
@@ -811,6 +885,8 @@ def material_source(game_id, sources):
         return "gil"
     if game_id in sources["gemstone"]:
         return "gemstone"
+    if game_id in sources["scrip"]:
+        return "scrip"
     if game_id in sources["special"]:
         return "special"
     return "loot"
