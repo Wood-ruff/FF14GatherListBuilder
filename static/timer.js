@@ -139,6 +139,7 @@ function updateTimers() {
     playAlarm();
   }
   firstTimerRun = false;
+  renderTimersOverview();
 }
 
 function openModal(title, body) {
@@ -173,6 +174,104 @@ function locationBody(element) {
   return lines.join("\n");
 }
 
+function collectTimerEntries(now) {
+  const entries = [];
+  for (const timer of document.querySelectorAll(".node-timer")) {
+    const row = timer.closest("tr");
+    const nameElement = row ? row.querySelector(".copy-name") : null;
+    entries.push({
+      name: nameElement ? nameElement.dataset.name : "?",
+      spawn: nextSpawn(JSON.parse(timer.dataset.times), now),
+      zone: timer.dataset.zone,
+      x: timer.dataset.x,
+      y: timer.dataset.y,
+      aetheryte: timer.dataset.aetheryte,
+    });
+  }
+  entries.sort(function (a, b) {
+    if (a.spawn.open !== b.spawn.open) {
+      return a.spawn.open ? -1 : 1;
+    }
+    if (a.spawn.open) {
+      return b.spawn.etMinutes - a.spawn.etMinutes;
+    }
+    return a.spawn.etMinutes - b.spawn.etMinutes;
+  });
+  return entries;
+}
+
+function timerEntryLocation(entry) {
+  let text = entry.zone || "?";
+  if (entry.x) {
+    text += " (" + entry.x + ", " + entry.y + ")";
+  }
+  if (entry.aetheryte) {
+    text += " — " + entry.aetheryte;
+  }
+  return text;
+}
+
+function renderTimersOverview() {
+  const modal = document.getElementById("timers-modal");
+  if (modal === null || modal.hidden) {
+    return;
+  }
+  const list = document.getElementById("timers-list");
+  list.innerHTML = "";
+  const entries = collectTimerEntries(eorzeaNowMinutes());
+  if (entries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = msg("no_timed_items", "No timed items in this list.");
+    list.appendChild(empty);
+    return;
+  }
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = entry.spawn.open ? "timer-entry open" : "timer-entry";
+
+    const info = document.createElement("div");
+    const name = document.createElement("div");
+    name.textContent = entry.name;
+    const location = document.createElement("div");
+    location.className = "muted";
+    location.textContent = timerEntryLocation(entry);
+    info.appendChild(name);
+    info.appendChild(location);
+
+    const when = document.createElement("div");
+    when.className = "when";
+    const time = formatRealDuration(entry.spawn.etMinutes);
+    when.textContent = entry.spawn.open
+      ? msg("timer_up", "up now — {time} left").replace("{time}", time)
+      : msg("timer_in", "in {time}").replace("{time}", time);
+
+    row.appendChild(info);
+    row.appendChild(when);
+    list.appendChild(row);
+  }
+}
+
+function setupTimersOverview() {
+  const button = document.getElementById("timers-overview");
+  if (button === null) {
+    return;
+  }
+  const modal = document.getElementById("timers-modal");
+  button.addEventListener("click", function () {
+    modal.hidden = false;
+    renderTimersOverview();
+  });
+  document.getElementById("timers-close").addEventListener("click", function () {
+    modal.hidden = true;
+  });
+  modal.addEventListener("click", function (event) {
+    if (event.target === modal) {
+      modal.hidden = true;
+    }
+  });
+}
+
 function setupTimerClicks() {
   for (const element of document.querySelectorAll(".node-timer, .node-location")) {
     element.addEventListener("click", function () {
@@ -194,6 +293,7 @@ function startTicking() {
 
 setupModal();
 setupAlarmToggle();
+setupTimersOverview();
 setupTimerClicks();
 updateTimers();
 startTicking();

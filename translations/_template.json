@@ -279,6 +279,14 @@
     "english": "Timed first",
     "translation": ""
   },
+  "timers_overview": {
+    "english": "Timers",
+    "translation": ""
+  },
+  "no_timed_items": {
+    "english": "No timed items in this list.",
+    "translation": ""
+  },
   "scrip_only": {
     "english": "Scrip items only",
     "translation": ""

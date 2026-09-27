@@ -63,6 +63,7 @@
             <input type="checkbox" name="timed" value="1" {% if timed_first %}checked{% endif %}>
             {{ t("timed_first") }}
           </label>
+          <button type="button" id="timers-overview" class="secondary push-right">{{ t("timers_overview") }}</button>
         </div>
       </form>
 
@@ -164,6 +165,14 @@
       {% endif %}
     </section>
     {% endif %}
+
+    <div id="timers-modal" class="modal" hidden>
+      <div class="modal-box timers-box">
+        <h3>{{ t("timers_overview") }}</h3>
+        <div id="timers-list"></div>
+        <button type="button" id="timers-close" class="secondary">{{ t("modal_close") }}</button>
+      </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}

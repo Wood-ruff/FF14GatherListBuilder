@@ -336,6 +336,13 @@ def test_timed_first_toggle_reorders_the_list(client, monkeypatch):
     assert page.find("Bay Leaf") < page.find("Maple Log")
 
 
+def test_timers_overview_modal_is_rendered(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "1"})
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'id="timers-overview"' in page
+    assert 'id="timers-modal"' in page
+
+
 def test_list_name_filter_narrows_the_items(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
     client.post("/add", data={"list": "Demo", "item": "Maple Log", "amount": "2"})

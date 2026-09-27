@@ -239,6 +239,10 @@ form {
   border-style: dashed;
 }
 
+.push-right {
+  margin-left: auto;
+}
+
 .filter-label {
   color: var(--text-muted);
   text-transform: uppercase;
@@ -754,6 +758,32 @@ tr.done .copy-name {
   margin: 0 0 16px;
   color: var(--text-muted);
   white-space: pre-line;
+}
+
+.timers-box {
+  text-align: left;
+  min-width: 440px;
+  max-width: 90vw;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.timer-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.timer-entry .when {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-entry.open .when {
+  color: #7bc275;
 }
 
 .node-location {

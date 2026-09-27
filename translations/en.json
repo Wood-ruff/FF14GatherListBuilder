@@ -69,6 +69,8 @@
   "name_filter": "Filter by name…",
   "list_filter_label": "Filter",
   "timed_first": "Timed first",
+  "timers_overview": "Timers",
+  "no_timed_items": "No timed items in this list.",
   "scrip_only": "Scrip items only",
   "all_collectables": "All collectables",
   "all_items": "All items",
