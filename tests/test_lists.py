@@ -282,6 +282,21 @@ def test_craft_with_materials_marks_the_item(tmp_path, monkeypatch):
     assert headband["materials_added"] is True
 
 
+def test_add_all_materials_covers_unmarked_craftables_only(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Crafts", "Crested Headband", 1)
+    lists.add_item("Crafts", "Copper Ore", 3)
+
+    lists.add_all_materials("Crafts")
+    items = lists.get_items("Crafts")
+    assert lists.find_item(items, "Iron Ore")["amount"] == 4
+    assert lists.find_item(items, "Wind Cluster")["amount"] == 3
+    assert lists.find_item(items, "Crested Headband")["materials_added"] is True
+
+    lists.add_all_materials("Crafts")
+    assert lists.find_item(lists.get_items("Crafts"), "Iron Ore")["amount"] == 4
+
+
 def test_remove_materials_keeps_craftables_and_resets_markers(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Crafts", "Crested Headband", 1)

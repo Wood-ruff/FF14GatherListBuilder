@@ -12,6 +12,10 @@
             <input type="hidden" name="list" value="{{ selected }}">
             <button type="submit" class="secondary">{{ t("export") }}</button>
           </form>
+          <form method="post" action="/add-all-materials">
+            <input type="hidden" name="list" value="{{ selected }}">
+            <button type="submit" class="secondary">{{ t("add_all_materials") }}</button>
+          </form>
           <form method="post" action="/remove-materials" onsubmit="return confirm('{{ t('remove_materials_confirm') }}')">
             <input type="hidden" name="list" value="{{ selected }}">
             <button type="submit" class="danger">{{ t("remove_materials") }}</button>

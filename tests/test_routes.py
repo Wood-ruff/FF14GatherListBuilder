@@ -312,6 +312,29 @@ def test_create_list_rejects_bad_names(client):
     assert "evil" not in page
 
 
+def test_add_all_materials_via_post(client, monkeypatch):
+    items = {
+        "crested headband": {"row_id": 47184, "fields": {"Name": "Crested Headband"}},
+        "iron ore": {"row_id": 5111, "fields": {"Name": "Iron Ore"}},
+    }
+    recipes = {
+        "crested headband": {
+            "yields": 1,
+            "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}],
+        },
+    }
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: items.get(name.lower()))
+    monkeypatch.setattr("xivapi.fetch_recipe", lambda name: recipes.get(name.lower()))
+    monkeypatch.setattr("routes.run_in_background", lambda task: task())
+    client.post("/add", data={"list": "Demo", "item": "Crested Headband", "amount": "2"})
+
+    response = client.post("/add-all-materials", data={"list": "Demo"})
+    assert response.status_code == 302
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert "Iron Ore" in page
+    assert 'value="8"' in page
+
+
 def test_remove_materials_via_post(client, monkeypatch):
     item = {"row_id": 47184, "fields": {"Name": "Crested Headband"}}
     recipe = {"yields": 1, "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}]}

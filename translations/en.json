@@ -22,6 +22,7 @@
   "export": "Export",
   "import": "Import",
   "empty_list_button": "Empty list",
+  "add_all_materials": "Add all materials",
   "remove_materials": "Remove materials",
   "remove_materials_confirm": "Remove all materials and crystals from this list?",
   "empty_list_confirm": "Remove all items from this list?",
