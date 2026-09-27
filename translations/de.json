@@ -33,6 +33,7 @@
   "sources_vendor": "Händler: {name}",
   "sources_loot": "Monster-Beute / Verwertung / Sonstiges",
   "market_tooltip": "Marktbrett-Preise auf Universalis prüfen",
+  "pin_popup": "Popup anheften — es bleibt offen und die Seite bleibt bedienbar",
   "craft_costs_gil": "Gil-Händler",
   "craft_costs_special": "Währungs-Händler",
   "craft_costs_loot_hint": "Benötigt Materialien, die von Gegnern fallen gelassen werden",

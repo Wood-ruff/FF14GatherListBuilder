@@ -33,6 +33,7 @@
   "sources_vendor": "Vendor: {name}",
   "sources_loot": "mob drops / desynthesis / other",
   "market_tooltip": "Check market board prices on Universalis",
+  "pin_popup": "Pin popup — it stays open and the page stays usable",
   "craft_costs_gil": "gil vendor",
   "craft_costs_special": "currency vendor",
   "craft_costs_loot_hint": "Needs materials dropped by enemies",

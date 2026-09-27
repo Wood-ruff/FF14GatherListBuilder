@@ -135,6 +135,10 @@
     "english": "Check market board prices on Universalis",
     "translation": ""
   },
+  "pin_popup": {
+    "english": "Pin popup — it stays open and the page stays usable",
+    "translation": ""
+  },
   "craft_costs_gil": {
     "english": "gil vendor",
     "translation": ""

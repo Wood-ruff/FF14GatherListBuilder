@@ -120,6 +120,7 @@ function renderSources(info) {
 
 function openSources(itemId) {
   const modal = document.getElementById("sources-modal");
+  modal.dataset.itemId = itemId;
   modal.hidden = false;
   document.getElementById("sources-title").textContent = "";
   document.getElementById("sources-list").innerHTML = "";

@@ -752,6 +752,7 @@ tr.done .copy-name {
 }
 
 .modal-box {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -759,6 +760,42 @@ tr.done .copy-name {
   min-width: 280px;
   max-width: 90vw;
   text-align: center;
+}
+
+.modal-box h3 {
+  cursor: move;
+  user-select: none;
+}
+
+.modal-pin {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  padding: 2px;
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.modal-pin:hover {
+  opacity: 0.8;
+}
+
+.modal-pin.active {
+  opacity: 1;
+}
+
+.modal.pinned {
+  pointer-events: none;
+  background: transparent;
+}
+
+.modal.pinned .modal-box {
+  pointer-events: auto;
+  border-color: var(--accent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 .modal-box h3 {
