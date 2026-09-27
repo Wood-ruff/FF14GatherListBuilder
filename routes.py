@@ -264,6 +264,16 @@ def craft_costs():
     return jsonify(entries)
 
 
+@routes.get("/item-sources")
+def item_sources():
+    """Return everything known about one list item's acquisition as JSON."""
+    list_name = request.args.get("list", "").strip()
+    item_id = request.args.get("id", "").strip()
+    if not list_name or not item_id.isdigit():
+        return jsonify(None)
+    return jsonify(lists.get_item_sources(list_name, int(item_id)))
+
+
 @routes.get("/suggest")
 def suggest_items():
     """Return item name suggestions for a partial search as JSON."""
@@ -280,6 +290,12 @@ def item_icon(game_id):
 def job_icon(type_id):
     """Serve one cached gathering job icon."""
     return send_from_directory(lists.icon_folder(), f"jobtype_{type_id}.png")
+
+
+@routes.get("/market-icon")
+def market_icon():
+    """Serve the cached market board symbol icon."""
+    return send_from_directory(lists.icon_folder(), lists.market_icon_file())
 
 
 @routes.get("/craft-icons/<int:icon_id>")

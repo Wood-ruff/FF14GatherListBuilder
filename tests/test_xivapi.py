@@ -17,6 +17,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.COLLECTABLES.clear()
     xivapi.CRAFTABLES.clear()
     xivapi.MATERIAL_SOURCES.clear()
+    xivapi.TOMESTONES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
 
@@ -708,6 +709,7 @@ def test_fetch_material_sources_classifies_item_ids(monkeypatch):
     assert sources["gemstone"] == [304]
     assert sources["scrip"] == {"306": {"price": 200, "bundle": 1, "currency": 33913}}
     assert sources["currency"] == {"304": 26807, "305": 26807, "306": 33913}
+    assert sources["prices"] == {"304": 3, "305": 3, "306": 200}
 
 
 def test_timed_items_need_all_their_nodes_timed(monkeypatch):
@@ -727,6 +729,71 @@ def test_bases_without_gathering_points_do_not_vote_untimed(monkeypatch):
     ]})
     monkeypatch.setattr("requests.get", material_sources_api)
     assert xivapi.fetch_material_sources()["timed"] == [101]
+
+
+def vendor_api(url, params=None, **kwargs):
+    if "ENpcResident" in url:
+        return FakeResponse({"row_id": 1000236, "fields": {"Singular": "O'rhoyod"}})
+    if "TerritoryType" in url:
+        return FakeResponse({"fields": {
+            "PlaceName": {"fields": {"Name": "Limsa Lominsa"}},
+            "Aetheryte": {"row_id": 8, "fields": {"PlaceName": {"fields": {"Name": "Limsa Plaza"}}}},
+            "Map": {"fields": {"SizeFactor": 100, "OffsetX": 0, "OffsetY": 0}},
+        }})
+    if "/Item/" in url:
+        return FakeResponse({"fields": {"PriceMid": 108, "ItemSearchCategory@as(raw)": 53}})
+    sheet = params["sheets"]
+    if sheet == "GilShopItem":
+        return FakeResponse({"results": [{"row_id": 262144, "subrow_id": 0, "fields": {}}]})
+    if sheet == "SpecialShop":
+        return FakeResponse({"results": []})
+    if sheet == "ENpcBase":
+        return FakeResponse({"results": [{"row_id": 1000236, "fields": {}}]})
+    if sheet == "Level":
+        return FakeResponse({"results": [{"row_id": 1, "fields": {"X": 0.0, "Z": 0.0, "Territory@as(raw)": 128}}]})
+    raise AssertionError(sheet)
+
+
+def test_fetch_item_offers_resolve_price_and_vendor(monkeypatch):
+    monkeypatch.setattr("requests.get", vendor_api)
+    monkeypatch.setattr("xivapi.closest_aetheryte", lambda *args: "Limsa Plaza")
+    offers = xivapi.fetch_item_offers(4594)
+    assert offers == [{
+        "shop": None,
+        "currency": 1,
+        "price": 108,
+        "vendor": {
+            "name": "O'rhoyod",
+            "zone": "Limsa Lominsa",
+            "aetheryte": "Limsa Plaza",
+            "x": 21.5,
+            "y": 21.5,
+        },
+    }]
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item_offers(4594)[0]["price"] == 108
+
+
+def test_item_details_are_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", vendor_api)
+    assert xivapi.fetch_item_details(46243) == {"price": 108, "marketable": True}
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item_details(46243)["marketable"] is True
+
+
+def test_distinct_offers_prefer_located_vendors():
+    located = {"shop": None, "currency": 1, "price": 108, "vendor": {"name": "A"}}
+    anonymous = {"shop": None, "currency": 1, "price": 108, "vendor": None}
+    named_shop = {"shop": "Exchange", "currency": 2, "price": 5, "vendor": None}
+    assert xivapi.distinct_offers([anonymous, located, named_shop]) == [located, named_shop]
 
 
 def test_old_shape_cached_material_sources_are_refetched(monkeypatch):

@@ -18,6 +18,7 @@ AETHERYTES = {}
 COLLECTABLES = {}
 CRAFTABLES = {}
 MATERIAL_SOURCES = {}
+TOMESTONES = {}
 DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
 
@@ -44,6 +45,7 @@ def clear_cache():
     COLLECTABLES.clear()
     CRAFTABLES.clear()
     MATERIAL_SOURCES.clear()
+    TOMESTONES.clear()
     DOWNLOADED_ICONS.clear()
     item_cache.clear()
 
@@ -840,7 +842,7 @@ COST_TYPE_TOMESTONE = 2
 COST_TYPE_SCRIP = 3
 SCRIP_COST_INDEXES = {2: 33913, 4: 33914, 6: 41784, 7: 41785}
 SCRIP_ITEM_IDS = set(SCRIP_COST_INDEXES.values())
-REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency")
+REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency", "prices")
 
 
 def fetch_material_sources():
@@ -888,6 +890,7 @@ def lookup_material_sources():
         "gemstone": sorted(trades["gemstone"] - trades["nongemstone"]),
         "scrip": scrip_only_prices(trades),
         "currency": trades["currency"],
+        "prices": trades["prices"],
     }
 
 
@@ -971,6 +974,242 @@ def gathering_item_map():
     return mapping
 
 
+MARKET_ICON_ID = 60570
+
+
+def ensure_market_icon():
+    """Download the market board symbol once and return its icon file name."""
+    key = f"symbol_{MARKET_ICON_ID}"
+    if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
+        DOWNLOADED_ICONS.add(key)
+        return f"{key}.png"
+    png = fetch_asset(f"ui/icon/060000/{MARKET_ICON_ID:06d}.tex")
+    if png:
+        item_cache.store_icon(key, png)
+        DOWNLOADED_ICONS.add(key)
+    return f"{key}.png"
+
+
+def fetch_item_details(game_id):
+    """Return an item's gil price and market availability, cached."""
+    cached = item_cache.get_fresh_result(str(game_id), "item_details")
+    if cached is not None:
+        return cached
+    data = get_json(f"{SHEET_URL}/Item/{game_id}", {"fields": "PriceMid,ItemSearchCategory@as(raw)"})
+    if data is None:
+        return None
+    details = {
+        "price": data["fields"]["PriceMid"],
+        "marketable": data["fields"]["ItemSearchCategory@as(raw)"] > 0,
+    }
+    item_cache.store_result(str(game_id), details, "item_details")
+    return details
+
+
+def fetch_item_offers(game_id):
+    """Return the item's shop offers with prices and vendors, cached per language."""
+    key = f"{settings.get_language()}:{game_id}"
+    cached = item_cache.get_fresh_result(key, "offers")
+    if cached is not None:
+        return cached
+    offers = lookup_item_offers(game_id)
+    if offers is not None:
+        item_cache.store_result(key, offers, "offers")
+    return offers
+
+
+MAX_GIL_SHOPS = 3
+MAX_SPECIAL_SHOPS = 5
+
+
+def lookup_item_offers(game_id):
+    """Collect the item's gil and special shop offers, each with its vendor."""
+    offers = gil_offers(game_id)
+    if offers is None:
+        return None
+    special = special_offers(game_id)
+    if special is None:
+        return None
+    return distinct_offers(offers + special)
+
+
+def gil_offers(game_id):
+    """Build one offer per gil shop selling the item."""
+    rows = search_rows("GilShopItem", f"Item={game_id}", limit=20)
+    if rows is None:
+        return None
+    shop_ids = []
+    for row in rows:
+        if row["row_id"] not in shop_ids:
+            shop_ids.append(row["row_id"])
+    if not shop_ids:
+        return []
+    details = fetch_item_details(game_id)
+    price = details["price"] if details else None
+    offers = []
+    for shop_id in shop_ids[:MAX_GIL_SHOPS]:
+        offer = build_offer(shop_id, None, GIL_ITEM_ID, price)
+        if offer is None:
+            return None
+        offers.append(offer)
+    return offers
+
+
+SPECIAL_OFFER_FIELDS = f"Name,{SPECIAL_SHOP_FIELDS}"
+
+
+def special_offers(game_id):
+    """Build one offer per special shop selling the item."""
+    rows = search_rows("SpecialShop", f"Item[].Item[]={game_id}", SPECIAL_OFFER_FIELDS, limit=MAX_SPECIAL_SHOPS)
+    if rows is None:
+        return None
+    if not rows:
+        return []
+    tomestones = tomestone_currency_ids()
+    if tomestones is None:
+        return None
+    offers = []
+    for row in rows:
+        currency, price = shop_item_cost(row["fields"]["Item"], game_id, tomestones)
+        offer = build_offer(row["row_id"], row["fields"]["Name"] or None, currency, price)
+        if offer is None:
+            return None
+        offers.append(offer)
+    return offers
+
+
+def shop_item_cost(shop_trades, game_id, tomestones):
+    """Return the currency and price of the first trade giving the item."""
+    for trade in shop_trades:
+        if game_id not in trade.get(RAW_ITEM_FIELD, []):
+            continue
+        costs = trade_costs(trade, tomestones)
+        if costs:
+            return costs[0]
+    return None, None
+
+
+def build_offer(shop_id, shop_name, currency, price):
+    """Combine one shop's price with its located vendor, or None on api errors."""
+    vendor = shop_vendor(shop_id)
+    if vendor is None:
+        return None
+    return {"shop": shop_name, "currency": currency, "price": price, "vendor": vendor or None}
+
+
+def distinct_offers(offers):
+    """Drop duplicated offers, preferring the ones with a located vendor."""
+    offers = sorted(offers, key=lambda offer: (offer["vendor"] is None, offer["shop"] is None))
+    seen = set()
+    kept = []
+    for offer in offers:
+        vendor = offer["vendor"] or {}
+        name = vendor.get("name") or offer["shop"]
+        if name is None and any(same_deal(offer, other) for other in kept):
+            continue
+        key = (name, offer["currency"], offer["price"])
+        if key not in seen:
+            seen.add(key)
+            kept.append(offer)
+    return kept
+
+
+def same_deal(offer, other):
+    """Check whether two offers ask the same price in the same currency."""
+    return offer["currency"] == other["currency"] and offer["price"] == other["price"]
+
+
+def shop_vendor(shop_id):
+    """Return the located npc offering one shop, {} when unknown, cached per shop."""
+    key = f"{settings.get_language()}:{shop_id}"
+    cached = item_cache.get_fresh_result(key, "shop_vendor")
+    if cached is not None:
+        return cached
+    vendor = lookup_shop_vendor(shop_id)
+    if vendor is not None:
+        item_cache.store_result(key, vendor, "shop_vendor")
+    return vendor
+
+
+def lookup_shop_vendor(shop_id):
+    """Find and locate one npc that offers the shop, {} when none is known."""
+    npcs = search_rows("ENpcBase", f"ENpcData[]={shop_id}", limit=3)
+    if npcs is None:
+        return None
+    for npc in npcs:
+        located = npc_location(npc["row_id"])
+        if located is None:
+            return None
+        if located:
+            return located
+    return {}
+
+
+def npc_location(npc_id):
+    """Return one npc's name, zone, position and closest aetheryte, {} when unplaced."""
+    levels = search_rows("Level", f"Object={npc_id}", "X,Z,Territory@as(raw)")
+    if levels is None:
+        return None
+    if not levels:
+        return {}
+    name = npc_name(npc_id)
+    if name is None:
+        return None
+    fields = levels[0]["fields"]
+    territory_id = fields["Territory@as(raw)"]
+    place = fetch_territory_info(territory_id)
+    if place is None:
+        return None
+    x = to_map_coord(fields["X"], place["offset_x"], place["size_factor"])
+    y = to_map_coord(fields["Z"], place["offset_y"], place["size_factor"])
+    aetheryte = closest_aetheryte(territory_id, place["size_factor"], x, y)
+    return {
+        "name": name,
+        "zone": place["zone"],
+        "aetheryte": aetheryte or place["aetheryte"],
+        "x": x,
+        "y": y,
+    }
+
+
+def npc_name(npc_id):
+    """Return one npc's display name, or None on api errors."""
+    url = f"{SHEET_URL}/ENpcResident/{npc_id}"
+    data = get_json(url, {"fields": "Singular", "language": settings.get_language()})
+    if data is None:
+        return None
+    return data["fields"]["Singular"]
+
+
+TERRITORY_FIELDS = (
+    "PlaceName.Name,Aetheryte.PlaceName.Name,"
+    "Map.SizeFactor,Map.OffsetX,Map.OffsetY"
+)
+
+
+def fetch_territory_info(territory_id):
+    """Return one territory's zone name, fallback aetheryte and map maths, cached."""
+    key = f"{settings.get_language()}:{territory_id}"
+    cached = item_cache.get_fresh_result(key, "territory")
+    if cached is not None:
+        return cached
+    url = f"{SHEET_URL}/TerritoryType/{territory_id}"
+    data = get_json(url, {"fields": TERRITORY_FIELDS, "language": settings.get_language()})
+    if data is None:
+        return None
+    fields = data["fields"]
+    map_fields = fields.get("Map", {}).get("fields", {})
+    info = {
+        "zone": fields["PlaceName"]["fields"]["Name"],
+        "aetheryte": territory_aetheryte_name(fields),
+        "size_factor": map_fields.get("SizeFactor", 100),
+        "offset_x": map_fields.get("OffsetX", 0),
+        "offset_y": map_fields.get("OffsetY", 0),
+    }
+    item_cache.store_result(key, info, "territory")
+    return info
+
+
 def sheet_rows(sheet, fields, limit=500):
     """Return one whole sheet as row id to fields, paging through it."""
     url = f"{SHEET_URL}/{sheet}"
@@ -1016,7 +1255,7 @@ def special_shop_items():
         "open": set(), "locked": set(),
         "gemstone": set(), "nongemstone": set(),
         "scrip": {}, "nonscrip": set(),
-        "currency": {},
+        "currency": {}, "prices": {},
     }
     for fields in shops.values():
         for trade in fields["Item"]:
@@ -1025,14 +1264,30 @@ def special_shop_items():
 
 
 def tomestone_currency_ids():
-    """Map tomestone cost indexes to their currency item ids."""
+    """Map tomestone cost indexes to their currency item ids, cached."""
+    if TOMESTONES:
+        return dict(TOMESTONES)
+    data = item_cache.get_fresh_result("all", "tomestones")
+    if data is None:
+        data = lookup_tomestone_ids()
+        if data is not None:
+            item_cache.store_result("all", data, "tomestones")
+    if data is None:
+        return None
+    mapping = {int(index): item_id for index, item_id in data.items()}
+    TOMESTONES.update(mapping)
+    return mapping
+
+
+def lookup_tomestone_ids():
+    """Fetch the tomestone index to currency item id mapping."""
     rows = sheet_rows("TomestonesItem", "Item@as(raw),Tomestones@as(raw)")
     if rows is None:
         return None
     mapping = {}
     for fields in rows.values():
         if fields["Tomestones@as(raw)"] > 0 and fields[RAW_ITEM_FIELD] > 0:
-            mapping[fields["Tomestones@as(raw)"]] = fields[RAW_ITEM_FIELD]
+            mapping[str(fields["Tomestones@as(raw)"])] = fields[RAW_ITEM_FIELD]
     return mapping
 
 
@@ -1047,6 +1302,7 @@ def collect_special_trade(trade, trades, tomestones):
         trades["locked" if gated else "open"].add(item_id)
         if cost_ids:
             trades["currency"].setdefault(str(item_id), costs[0][0])
+            trades["prices"].setdefault(str(item_id), costs[0][1])
         if cost_ids == {BICOLOR_GEMSTONE_ID}:
             trades["gemstone"].add(item_id)
         else:

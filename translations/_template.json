@@ -91,6 +91,50 @@
     "english": "Hide locked vendor recipes",
     "translation": ""
   },
+  "sources_button": {
+    "english": "Sources",
+    "translation": ""
+  },
+  "sources_gather": {
+    "english": "Gatherable",
+    "translation": ""
+  },
+  "sources_craft": {
+    "english": "Craftable",
+    "translation": ""
+  },
+  "sources_crystal": {
+    "english": "Crystal",
+    "translation": ""
+  },
+  "sources_crystal_hint": {
+    "english": "easy to get in many ways",
+    "translation": ""
+  },
+  "sources_scrip": {
+    "english": "scrip vendor",
+    "translation": ""
+  },
+  "sources_price": {
+    "english": "{price} {currency}",
+    "translation": ""
+  },
+  "sources_none": {
+    "english": "No sources known",
+    "translation": ""
+  },
+  "sources_vendor": {
+    "english": "Vendor: {name}",
+    "translation": ""
+  },
+  "sources_loot": {
+    "english": "mob drops / desynthesis / other",
+    "translation": ""
+  },
+  "market_tooltip": {
+    "english": "Check market board prices on Universalis",
+    "translation": ""
+  },
   "craft_costs_gil": {
     "english": "gil vendor",
     "translation": ""

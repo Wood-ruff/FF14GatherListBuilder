@@ -87,6 +87,7 @@ def new_item(items, item_name, amount):
     gathering = None
     craftable = False
     job_icons = []
+    marketable = None
     if game_item:
         item_name = game_item["fields"]["Name"]
         game_id = game_item["row_id"]
@@ -94,6 +95,7 @@ def new_item(items, item_name, amount):
         recipe = xivapi.fetch_recipe(item_name)
         craftable = recipe is not None
         job_icons = job_symbols(recipe, gathering)
+        marketable = item_marketable(game_id)
     return {
         "id": next_item_id(items),
         "name": item_name,
@@ -102,6 +104,7 @@ def new_item(items, item_name, amount):
         "gathering": gathering,
         "craftable": craftable,
         "job_icons": job_icons,
+        "marketable": marketable,
         "done": False,
         "muted": False,
         "materials_added": False,
@@ -109,6 +112,14 @@ def new_item(items, item_name, amount):
         "note": "",
         "language": settings.get_language(),
     }
+
+
+def item_marketable(game_id):
+    """Tell whether an item can be traded on the market board, or None when unknown."""
+    details = xivapi.fetch_item_details(game_id)
+    if details is None:
+        return None
+    return details["marketable"]
 
 
 def add_crafted_item(list_name, item_name, amount):
@@ -251,6 +262,8 @@ def item_needs_data(item):
         return False
     if not item.get("job_icons"):
         return True
+    if item.get("marketable") is None:
+        return True
     gathering = item.get("gathering")
     if gathering is not None and "x" not in gathering:
         return True
@@ -383,6 +396,7 @@ def imported_item(item_id, item):
         "sticky": bool(item.get("sticky", False)),
         "note": imported_note(item),
         "job_icons": [],
+        "marketable": None,
         "language": None,
     }
 
@@ -413,6 +427,7 @@ def refresh_list_data(list_name):
             recipe = xivapi.fetch_recipe(item["name"])
             item["craftable"] = recipe is not None
             item["job_icons"] = job_symbols(recipe, item["gathering"])
+            item["marketable"] = item_marketable(item["game_id"])
     storage.save_items(list_name, items)
 
 
@@ -455,6 +470,11 @@ def clear_caches():
 def icon_folder():
     """Return the folder where item icons are cached."""
     return xivapi.icon_folder()
+
+
+def market_icon_file():
+    """Make sure the market board symbol is cached and return its file name."""
+    return xivapi.ensure_market_icon()
 
 
 def suggest_item_names(text):
@@ -919,6 +939,64 @@ def is_looted(material, gemstones_unlocked):
     if material["source"] == "loot":
         return True
     return material["source"] == "gemstone" and not gemstones_unlocked
+
+
+def get_item_sources(list_name, item_id):
+    """Collect everything known about how one list item can be acquired."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return None
+    item = find_item_by_id(storage.load_items(list_name), item_id)
+    if item is None or not item.get("game_id"):
+        return None
+    return item_source_info(item)
+
+
+def item_source_info(item):
+    """Build the acquisition overview of one item from the known source data."""
+    game_id = item["game_id"]
+    sources = material_source_sets() or {}
+    scrip = sources.get("scrip", {}).get(game_id)
+    info = {
+        "name": item["name"],
+        "game_id": game_id,
+        "crystal": is_crystal(item),
+        "craftable": bool(item.get("craftable")),
+        "gatherable": game_id in sources.get("gatherable", ()),
+        "timed": game_id in sources.get("timed", ()),
+        "gil": game_id in sources.get("gil", ()),
+        "scrip": scrip,
+        "gemstone": game_id in sources.get("gemstone", ()),
+        "special": game_id in sources.get("special", ()),
+        "locked": game_id in sources.get("locked", ()),
+        "offers": [],
+    }
+    info["loot"] = not any((
+        info["crystal"], info["gatherable"], info["gil"], info["special"], info["craftable"],
+    ))
+    currency = scrip["currency"] if scrip else sources.get("currency", {}).get(game_id)
+    info["currency"] = currency
+    info["currency_name"] = currency_display_name(currency)
+    info["price"] = sources.get("prices", {}).get(game_id)
+    if info["gil"] or info["special"]:
+        info["offers"] = named_offers(game_id)
+    return info
+
+
+def named_offers(game_id):
+    """Return the item's shop offers with their currency display names."""
+    offers = xivapi.fetch_item_offers(game_id) or []
+    return [dict(offer, currency_name=currency_display_name(offer["currency"])) for offer in offers]
+
+
+def currency_display_name(currency_id):
+    """Return the display name of a currency item, or None."""
+    if not currency_id:
+        return None
+    currency = xivapi.fetch_item_by_id(currency_id)
+    if currency:
+        return currency["fields"]["Name"]
+    return None
 
 
 def alarm_sounds():

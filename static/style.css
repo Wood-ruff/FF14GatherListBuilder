@@ -873,6 +873,46 @@ tr.done .copy-name {
   flex-shrink: 0;
 }
 
+.market-icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+}
+
+.source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.source-tag {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.source-info {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.vendor-card {
+  margin: 14px 0 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vendor-card .vendor-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 .craft-pager {
   display: flex;
   justify-content: center;

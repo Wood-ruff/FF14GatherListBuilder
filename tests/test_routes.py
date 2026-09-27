@@ -12,6 +12,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
     monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: None)
+    monkeypatch.setattr("xivapi.fetch_item_offers", lambda game_id: [])
+    monkeypatch.setattr("xivapi.fetch_item_details", lambda game_id: None)
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 
@@ -482,6 +484,16 @@ def test_rotation_endpoint_returns_matches(client, monkeypatch):
     result = client.get("/rotation?level=100&jobs=botanist&scrips=purple").get_json()
     assert [entry["name"] for entry in result] == ["Purple Leaf"]
     assert client.get("/rotation?level=100&jobs=miner&scrips=purple").get_json() == []
+
+
+def test_item_sources_endpoint(client, monkeypatch):
+    item = {"row_id": 5111, "fields": {"Name": "Iron Ore"}}
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: item)
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "1"})
+    result = client.get("/item-sources?list=Demo&id=1").get_json()
+    assert result["name"] == "Iron Ore"
+    assert result["loot"] is True
+    assert client.get("/item-sources?list=Demo&id=x").get_json() is None
 
 
 def test_craft_costs_endpoint_ranks_cheapest_first(client, monkeypatch):

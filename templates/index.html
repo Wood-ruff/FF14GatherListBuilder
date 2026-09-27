@@ -79,6 +79,7 @@
             <th class="num">{{ t("header_amount") }}</th>
             <th class="num">{{ t("header_node_materials") }}</th>
             <th class="num">{{ t("header_game_id") }}</th>
+            <th class="trail"></th>
             <th class="trail">{{ t("header_note") }}</th>
             <th></th>
           </tr>
@@ -132,8 +133,17 @@
               {% endif %}
             </td>
             <td class="trail">
+              {% if item.marketable %}
+              <a class="market-link" href="https://universalis.app/market/{{ item.game_id }}" target="_blank"
+                 rel="noopener" title="{{ t('market_tooltip') }}"><img class="market-icon" src="/market-icon" alt="MB"></a>
+              {% endif %}
+            </td>
+            <td class="trail">
               <input class="note-field" data-list="{{ selected }}" data-id="{{ item.id }}"
                      value="{{ item.note or '' }}" placeholder="{{ t('note_placeholder') }}" maxlength="200">
+              {% if item.game_id and not item.craftable and not item.crystal %}
+              <button type="button" class="secondary sources-open" data-id="{{ item.id }}">{{ t("sources_button") }}</button>
+              {% endif %}
             </td>
             <td class="actions">
               {% if item.craftable %}
@@ -166,6 +176,15 @@
     </section>
     {% endif %}
 
+    <div id="sources-modal" class="modal" hidden data-list="{{ selected }}">
+      <div class="modal-box timers-box">
+        <h3 id="sources-title"></h3>
+        <div id="sources-spinner" class="spinner" hidden></div>
+        <div id="sources-list"></div>
+        <button type="button" id="sources-close" class="secondary">{{ t("modal_close") }}</button>
+      </div>
+    </div>
+
     <div id="timers-modal" class="modal" hidden>
       <div class="modal-box timers-box">
         <h3>{{ t("timers_overview") }}</h3>
@@ -179,4 +198,5 @@
 <script>window.reloadWhenAddsFinish = true;</script>
 <script src="{{ url_for('static', filename='done.js') }}"></script>
 <script src="{{ url_for('static', filename='notes.js') }}"></script>
+<script src="{{ url_for('static', filename='sources.js') }}"></script>
 {% endblock %}

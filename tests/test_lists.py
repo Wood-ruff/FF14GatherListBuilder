@@ -35,6 +35,8 @@ def fake_xivapi(monkeypatch):
     monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)
     monkeypatch.setattr("xivapi.fetch_item_by_id", lambda game_id: None)
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: None)
+    monkeypatch.setattr("xivapi.fetch_item_offers", lambda game_id: [])
+    monkeypatch.setattr("xivapi.fetch_item_details", lambda game_id: None)
     monkeypatch.setattr("settings.get_language", lambda: "en")
 
 
@@ -59,8 +61,8 @@ def test_add_and_get_items(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Copper Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1},
-        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1},
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1},
+        {"id": 2, "name": "Copper Ore", "amount": 5, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1},
     ]
 
 
@@ -69,7 +71,7 @@ def test_adding_same_item_sums_amounts(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "Iron Ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -78,7 +80,7 @@ def test_adding_same_item_ignores_case(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.add_item("Ores", "iron ore", 5)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -88,7 +90,7 @@ def test_spaces_are_normalized(tmp_path, monkeypatch):
     lists.add_item("My Ores", "Iron Ore", 5)
     assert lists.get_list_names() == ["My Ores"]
     assert lists.get_items(" My   Ores  ") == [
-        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 25, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -418,6 +420,7 @@ def test_items_with_old_gathering_shape_need_data():
     old_shape = {
         "game_id": 43930,
         "job_icons": [{"type": "gather", "icon": 3}],
+        "marketable": False,
         "gathering": {"timed": True, "times": [], "zone": "Somewhere", "aetheryte": None},
     }
     new_shape = dict(old_shape, gathering=dict(old_shape["gathering"], x=8.7, y=7.5))
@@ -426,9 +429,9 @@ def test_items_with_old_gathering_shape_need_data():
 
 
 def test_crystals_need_data_until_both_jobs_are_known():
-    one_job = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 3}]}
-    both_jobs = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 0}, {"type": "gather", "icon": 3}]}
-    plain = {"game_id": 5111, "job_icons": [{"type": "gather", "icon": 0}]}
+    one_job = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 3}], "marketable": True}
+    both_jobs = {"game_id": 16, "job_icons": [{"type": "gather", "icon": 0}, {"type": "gather", "icon": 3}], "marketable": True}
+    plain = {"game_id": 5111, "job_icons": [{"type": "gather", "icon": 0}], "marketable": True}
     assert lists.item_needs_data(one_job)
     assert not lists.item_needs_data(both_jobs)
     assert not lists.item_needs_data(plain)
@@ -451,6 +454,9 @@ def test_migrate_lists_fills_missing_fields(tmp_path, monkeypatch):
     assert lists.migrate_lists() == ["Old"]
 
     lists.set_item_flag("Old", 1, "job_icons", [{"type": "gather", "icon": 0}])
+    assert lists.migrate_lists() == ["Old"]
+
+    lists.set_item_flag("Old", 1, "marketable", True)
     assert lists.migrate_lists() == []
 
 
@@ -592,7 +598,7 @@ def source_craftable(game_id, name, mat_id):
 
 def fake_sources(**overrides):
     sources = {"gatherable": [], "timed": [], "gil": [], "special": [],
-               "locked": [], "gemstone": [], "scrip": {}, "currency": {}}
+               "locked": [], "gemstone": [], "scrip": {}, "currency": {}, "prices": {}}
     sources.update(overrides)
     return sources
 
@@ -725,6 +731,36 @@ def test_craft_costs_hide_filters_drop_unobtainable_recipes(monkeypatch):
     assert names(hide_loot=True, hide_locked=True, gemstones_unlocked=True) == ["Gathered", "Gemstone"]
 
 
+def test_item_sources_collect_all_known_ways(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 1)
+    sources = fake_sources(gatherable=[5111], timed=[5111], gil=[5111])
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+    vendor = {"name": "O'rhoyod", "zone": "Limsa", "aetheryte": "Plaza", "x": 9.1, "y": 7.5}
+    offers = [{"shop": None, "currency": 1, "price": 250, "vendor": vendor}]
+    monkeypatch.setattr("xivapi.fetch_item_offers", lambda game_id: offers)
+    monkeypatch.setattr("xivapi.fetch_item_details", lambda game_id: {"price": 250, "marketable": True})
+    info = lists.get_item_sources("Mats", 1)
+    assert info["gatherable"] is True
+    assert info["timed"] is True
+    assert info["gil"] is True
+    assert info["loot"] is False
+    assert info["game_id"] == 5111
+    assert info["offers"] == [
+        {"shop": None, "currency": 1, "price": 250, "vendor": vendor, "currency_name": None}
+    ]
+
+
+def test_item_sources_infer_loot_and_reject_unknown_items(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 1)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: fake_sources())
+    info = lists.get_item_sources("Mats", 1)
+    assert info["loot"] is True
+    assert info["offers"] == []
+    assert lists.get_item_sources("Mats", 99) is None
+
+
 def test_craft_costs_sort_crystals_last(monkeypatch):
     craftable = dict(source_craftable(1, "Mixed", 100), ingredients=[
         {"name": "Ice Crystal", "game_id": 9, "amount": 8},
@@ -772,7 +808,7 @@ def test_update_item_changes_amount(tmp_path, monkeypatch):
     lists.add_item("Ores", "Iron Ore", 20)
     lists.update_item("Ores", 1, 99)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 99, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -787,7 +823,7 @@ def test_added_item_takes_name_from_api(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "iRoN oRe", 20)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Iron Ore", "amount": 20, "game_id": 5111, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
@@ -823,7 +859,7 @@ def test_unknown_item_keeps_typed_name(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Ores", "Mystery Rock", 3)
     assert lists.get_items("Ores") == [
-        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "language": "en", "crystal": False, "group": 1}
+        {"id": 1, "name": "Mystery Rock", "amount": 3, "game_id": None, "gathering": None, "craftable": False, "done": False, "muted": False, "materials_added": False, "sticky": False, "note": "", "job_icons": [], "marketable": None, "language": "en", "crystal": False, "group": 1}
     ]
 
 
