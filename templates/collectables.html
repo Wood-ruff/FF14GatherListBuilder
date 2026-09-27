@@ -57,6 +57,30 @@
           <option value="all">{{ t("all_items") }}</option>
           <option value="marked">{{ t("marked_filter_only") }}</option>
         </select>
+        <button type="button" id="rotation-open" class="secondary push-right">{{ t("rotation_button") }}</button>
+      </div>
+
+      <div id="rotation-modal" class="modal" hidden>
+        <div class="modal-box timers-box">
+          <h3>{{ t("rotation_button") }}</h3>
+          <div class="filter-row">
+            <input type="number" id="rotation-level" min="1" max="100" value="100" title="{{ t('header_level') }}">
+            <label class="switch">
+              <input type="checkbox" id="rotation-miner" checked> {{ t("job_miner") }}
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="rotation-botanist" checked> {{ t("job_botanist") }}
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="rotation-fisher"> {{ t("job_fisher") }}
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="rotation-orange"> {{ t("rotation_orange") }}
+            </label>
+          </div>
+          <div id="rotation-list"></div>
+          <button type="button" id="rotation-close" class="secondary">{{ t("modal_close") }}</button>
+        </div>
       </div>
 
       <div class="grid-tools">
@@ -130,4 +154,8 @@
       <p class="muted">{{ t("no_matches") }}</p>
       {% endif %}
     </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='rotation.js') }}"></script>
 {% endblock %}

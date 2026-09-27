@@ -472,6 +472,17 @@ def test_collectables_filters_via_query(client, monkeypatch):
     assert 'src="/job-icons/0"' in page
 
 
+def test_rotation_endpoint_returns_matches(client, monkeypatch):
+    entries = [
+        {"game_id": 1, "name": "Purple Leaf", "level": 95, "job": "Harvesting", "timed": True,
+         "scrips": {"low": 16, "mid": 23, "high": 38}, "times": [{"start": 600, "duration": 120}]},
+    ]
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: entries)
+    result = client.get("/rotation?level=100&jobs=botanist&scrips=purple").get_json()
+    assert [entry["name"] for entry in result] == ["Purple Leaf"]
+    assert client.get("/rotation?level=100&jobs=miner&scrips=purple").get_json() == []
+
+
 def test_collectables_are_paginated(client, monkeypatch):
     entries = [
         {"game_id": n, "name": f"Item {n:03d}", "level": 50, "stars": 0, "job": "Mining",

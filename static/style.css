@@ -797,6 +797,26 @@ tr.done .copy-name {
   color: #7bc275;
 }
 
+.rotation-batch {
+  margin: 14px 0 4px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rotation-batch.open {
+  color: #7bc275;
+}
+
+#rotation-level {
+  width: 80px;
+}
+
+.node-items {
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .node-location {
   background: none;
   border: none;

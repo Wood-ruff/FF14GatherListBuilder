@@ -239,6 +239,16 @@ def pending_adds():
     return jsonify(PENDING_ADDS["count"])
 
 
+@routes.get("/rotation")
+def rotation():
+    """Return timed scrip collectables for the farm rotation planner as JSON."""
+    level = request.args.get("level", "")
+    jobs = [job for job in request.args.get("jobs", "").split(",") if job]
+    orange = request.args.get("scrips") == "orange"
+    entries = lists.get_rotation(int(level) if level.isdigit() else 100, jobs, orange)
+    return jsonify(entries)
+
+
 @routes.get("/suggest")
 def suggest_items():
     """Return item name suggestions for a partial search as JSON."""

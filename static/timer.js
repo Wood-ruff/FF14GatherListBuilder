@@ -229,6 +229,9 @@ function updateTimers() {
   }
   firstTimerRun = false;
   renderTimersOverview();
+  if (typeof renderRotation === "function") {
+    renderRotation();
+  }
 }
 
 function openModal(title, body) {

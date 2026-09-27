@@ -677,6 +677,32 @@ def mark_materials_added(list_name, item_name):
         storage.save_items(list_name, items)
 
 
+def get_rotation(level, jobs, orange_scrips):
+    """Return timed scrip collectables gatherable at the level by the chosen professions."""
+    rotation = []
+    for collectable in xivapi.fetch_collectables() or []:
+        if not collectable["timed"] or not collectable["scrips"]:
+            continue
+        if collectable["level"] > level:
+            continue
+        if orange_scrips and collectable["level"] != 100:
+            continue
+        if not orange_scrips and collectable["level"] > 99:
+            continue
+        if not rotation_job_matches(collectable["job"], jobs):
+            continue
+        rotation.append(collectable)
+    return rotation
+
+
+def rotation_job_matches(job, jobs):
+    """Check whether the gathering method belongs to one of the chosen professions."""
+    for chosen in jobs:
+        if job in JOB_GROUPS.get(chosen, ()):
+            return True
+    return False
+
+
 def alarm_sounds():
     """Return all alarm sound file names, built-in sounds first, custom ones after."""
     found = []

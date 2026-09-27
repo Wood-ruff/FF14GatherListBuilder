@@ -519,6 +519,30 @@ def test_refresh_prefers_the_id_lookup_for_localization(tmp_path, monkeypatch):
     assert item["game_id"] == 5111
 
 
+ROTATION_ENTRIES = [
+    {"game_id": 1, "name": "Purple Leaf", "level": 95, "job": "Harvesting", "timed": True,
+     "scrips": {"low": 16, "mid": 23, "high": 38}, "times": [{"start": 600, "duration": 120}]},
+    {"game_id": 2, "name": "Orange Ore", "level": 100, "job": "Mining", "timed": True,
+     "scrips": {"low": 120, "mid": 134, "high": 144}, "times": [{"start": 0, "duration": 120}]},
+    {"game_id": 3, "name": "Untimed Sand", "level": 100, "job": "Mining", "timed": False,
+     "scrips": {"low": 120, "mid": 134, "high": 144}, "times": []},
+    {"game_id": 4, "name": "No Scrips", "level": 100, "job": "Mining", "timed": True,
+     "scrips": None, "times": [{"start": 0, "duration": 120}]},
+]
+
+
+def test_rotation_filters_by_scrip_tier_level_and_jobs(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_collectables", lambda: ROTATION_ENTRIES)
+    purple = lists.get_rotation(100, ["miner", "botanist"], False)
+    assert [entry["name"] for entry in purple] == ["Purple Leaf"]
+
+    orange = lists.get_rotation(100, ["miner", "botanist"], True)
+    assert [entry["name"] for entry in orange] == ["Orange Ore"]
+
+    assert lists.get_rotation(90, ["botanist"], False) == []
+    assert lists.get_rotation(100, ["botanist"], True) == []
+
+
 def test_alarm_sounds_list_built_in_first_and_custom_last():
     sounds = lists.alarm_sounds()
     built_in_count = len(lists.BUILT_IN_ALARMS)

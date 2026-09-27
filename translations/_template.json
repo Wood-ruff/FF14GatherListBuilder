@@ -43,6 +43,18 @@
     "english": "Only alarm-marked",
     "translation": ""
   },
+  "rotation_button": {
+    "english": "Scrip farm rotation",
+    "translation": ""
+  },
+  "rotation_orange": {
+    "english": "Orange scrips",
+    "translation": ""
+  },
+  "rotation_empty": {
+    "english": "Nothing matches — check level and professions.",
+    "translation": ""
+  },
   "alarm_mark_tooltip": {
     "english": "Sound the alarm when this node comes up (needs marked alarms on)",
     "translation": ""
