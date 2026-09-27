@@ -234,7 +234,8 @@ form {
   justify-content: flex-end;
 }
 
-.refresh-page {
+.refresh-page,
+.icon-button {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -244,9 +245,21 @@ form {
   cursor: pointer;
 }
 
-.refresh-page:hover {
+.refresh-page:hover,
+.icon-button:hover {
   background: none;
   color: var(--text);
+}
+
+.pin-table.collapsed .trail {
+  display: none;
+}
+
+.note-field {
+  width: 170px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .pagination {

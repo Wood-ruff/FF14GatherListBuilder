@@ -67,6 +67,9 @@
       </form>
 
       {% if items %}
+      <div class="grid-tools">
+        <button type="button" id="trail-toggle" class="icon-button" title="{{ t('trail_toggle_title') }}">&#8677;</button>
+      </div>
       <table class="pin-table">
         <thead>
           <tr>
@@ -75,6 +78,7 @@
             <th class="num">{{ t("header_amount") }}</th>
             <th class="num">{{ t("header_node_materials") }}</th>
             <th class="num">{{ t("header_game_id") }}</th>
+            <th class="trail">{{ t("header_note") }}</th>
             <th></th>
           </tr>
         </thead>
@@ -114,11 +118,14 @@
               <span class="muted">?</span>
               {% endif %}
             </td>
+            <td class="trail">
+              <input class="note-field" data-list="{{ selected }}" data-id="{{ item.id }}"
+                     value="{{ item.note or '' }}" placeholder="{{ t('note_placeholder') }}" maxlength="200">
+            </td>
             <td class="actions">
               {% if item.craftable %}
               <button form="mats-{{ item.id }}" class="secondary" title="{{ t('row_add_materials_title') }}">{{ t("row_add_materials") }}</button>
               {% endif %}
-              <button form="edit-{{ item.id }}" class="secondary">{{ t("save") }}</button>
               <button form="delete-{{ item.id }}" class="danger">{{ t("delete") }}</button>
             </td>
           </tr>
@@ -150,4 +157,5 @@
 {% block scripts %}
 <script>window.reloadWhenAddsFinish = true;</script>
 <script src="{{ url_for('static', filename='done.js') }}"></script>
+<script src="{{ url_for('static', filename='notes.js') }}"></script>
 {% endblock %}

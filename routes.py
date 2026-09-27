@@ -322,6 +322,19 @@ def toggle_mute():
     return ("", 204)
 
 
+@routes.post("/set-note")
+def set_note():
+    """Save the note of one list item."""
+    list_name = request.form.get("list", "").strip()
+    item_id = request.form.get("id", "").strip()
+    note = request.form.get("note", "").strip()
+
+    if list_name and item_id.isdigit():
+        lists.set_note(list_name, int(item_id), note)
+
+    return ("", 204)
+
+
 @routes.post("/toggle-sticky")
 def toggle_sticky():
     """Pin or unpin one list item."""

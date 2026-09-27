@@ -175,6 +175,18 @@
     "english": "Game ID",
     "translation": ""
   },
+  "header_note": {
+    "english": "Notes",
+    "translation": ""
+  },
+  "note_placeholder": {
+    "english": "Note…",
+    "translation": ""
+  },
+  "trail_toggle_title": {
+    "english": "Show or hide the notes column",
+    "translation": ""
+  },
   "header_job": {
     "english": "Job",
     "translation": ""
@@ -205,10 +217,6 @@
   },
   "row_add_materials_title": {
     "english": "Add this item's base materials to the list",
-    "translation": ""
-  },
-  "save": {
-    "english": "Save",
     "translation": ""
   },
   "delete": {

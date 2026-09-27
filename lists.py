@@ -102,6 +102,7 @@ def new_item(items, item_name, amount):
         "muted": False,
         "materials_added": False,
         "sticky": False,
+        "note": "",
         "language": settings.get_language(),
     }
 
@@ -158,6 +159,11 @@ def set_materials_added(list_name, item_id, added):
 def set_sticky(list_name, item_id, sticky):
     """Pin or unpin one item of the named list."""
     set_item_flag(list_name, item_id, "sticky", sticky)
+
+
+def set_note(list_name, item_id, note):
+    """Save a short note on one item of the named list."""
+    set_item_flag(list_name, item_id, "note", note[:200])
 
 
 def set_item_flag(list_name, item_id, flag, value):
@@ -320,8 +326,17 @@ def imported_item(item_id, item):
         "muted": bool(item.get("muted", False)),
         "materials_added": bool(item.get("materials_added", False)),
         "sticky": bool(item.get("sticky", False)),
+        "note": imported_note(item),
         "language": None,
     }
+
+
+def imported_note(item):
+    """Return the imported item's note when it is a plain short text."""
+    note = item.get("note")
+    if isinstance(note, str):
+        return note[:200]
+    return ""
 
 
 def refresh_list_data(list_name):

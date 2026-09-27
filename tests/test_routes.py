@@ -138,6 +138,14 @@ def test_opening_a_list_in_a_new_language_localizes_it(client, monkeypatch):
     assert "Eisenerz" in page
 
 
+def test_set_note_via_post(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    response = client.post("/set-note", data={"list": "Demo", "id": "1", "note": "west of camp"})
+    assert response.status_code == 204
+    page = client.get("/?list=Demo").get_data(as_text=True)
+    assert 'value="west of camp"' in page
+
+
 def test_toggle_sticky_via_post(client):
     client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
     response = client.post("/toggle-sticky", data={"list": "Demo", "id": "1", "sticky": "1"})
