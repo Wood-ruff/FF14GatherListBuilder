@@ -54,6 +54,18 @@
         <button type="submit" class="secondary">{{ t("add_materials") }}</button>
       </form>
 
+      <form method="get" action="/" class="filters list-filter">
+        <input type="hidden" name="list" value="{{ selected }}">
+        <div class="filter-row">
+          <span class="filter-label">{{ t("list_filter_label") }}</span>
+          <input name="q" class="name-filter" placeholder="{{ t('name_filter') }}" value="{{ q }}">
+          <label class="switch">
+            <input type="checkbox" name="timed" value="1" {% if timed_first %}checked{% endif %}>
+            {{ t("timed_first") }}
+          </label>
+        </div>
+      </form>
+
       {% if items %}
       <table class="pin-table">
         <thead>

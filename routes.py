@@ -97,10 +97,19 @@ def page_context(selected, active_tab):
 def show_list():
     """Show the selected list and the controls to edit it."""
     selected = request.args.get("list", "").strip()
-    items = lists.get_items(selected) if selected else []
+    name_filter = request.args.get("q", "").strip()
+    timed_first = request.args.get("timed") == "1"
+    items = lists.get_items(selected, timed_first) if selected else []
     if lists.needs_localization(items):
         run_in_background(lambda: lists.localize_list(selected))
-    return render_template("index.html", items=items, **page_context(selected, "lists"))
+    items = lists.filter_items(items, name_filter)
+    return render_template(
+        "index.html",
+        items=items,
+        q=name_filter,
+        timed_first=timed_first,
+        **page_context(selected, "lists"),
+    )
 
 
 @routes.get("/collectables")

@@ -63,6 +63,8 @@
   "min_scrips": "Min. Scrips",
   "max_level": "Max. Stufe",
   "name_filter": "Nach Name filtern…",
+  "list_filter_label": "Filter",
+  "timed_first": "Zeitgebundene zuerst",
   "scrip_only": "Nur Scrip-Items",
   "all_collectables": "Alle Sammlerstücke",
   "all_items": "Alle Items",

@@ -28,16 +28,24 @@ def get_list_names():
     return storage.get_list_names()
 
 
-def get_items(list_name):
-    """Return the items of the named list, craftable items first."""
+def get_items(list_name, timed_first=False):
+    """Return the items of the named list, craftable items first, timed first on demand."""
     list_name = normalize_spaces(list_name)
     if not is_valid_list_name(list_name):
         return []
     items = sorted(storage.load_items(list_name), key=item_sort_group)
+    if timed_first:
+        items = sorted(items, key=lambda item: not is_timed(item))
     for item in items:
-        item["group"] = item_sort_group(item)
+        item["group"] = (0 if is_timed(item) else 1) if timed_first else item_sort_group(item)
         item["crystal"] = is_crystal(item)
     return items
+
+
+def is_timed(item):
+    """Check whether an item has a timed gathering node."""
+    gathering = item.get("gathering")
+    return bool(gathering and gathering.get("timed")) and not is_crystal(item)
 
 
 CRYSTAL_GAME_IDS = range(2, 20)
@@ -209,6 +217,11 @@ def create_list(list_name):
         return
     if list_name not in storage.get_list_names():
         storage.save_items(list_name, [])
+
+
+def filter_items(items, name_filter):
+    """Keep only items whose name contains the search term."""
+    return [item for item in items if matches_name(item, name_filter)]
 
 
 def add_all_materials(list_name):

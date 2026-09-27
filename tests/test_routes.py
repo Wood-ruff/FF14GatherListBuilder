@@ -312,6 +312,25 @@ def test_create_list_rejects_bad_names(client):
     assert "evil" not in page
 
 
+def test_timed_first_toggle_reorders_the_list(client, monkeypatch):
+    timed = {"timed": True, "times": [{"start": 600, "duration": 120}], "zone": None, "aetheryte": None}
+    client.post("/add", data={"list": "Demo", "item": "Maple Log", "amount": "1"})
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: timed)
+    monkeypatch.setattr("xivapi.fetch_item", lambda name: {"row_id": 43930, "fields": {"Name": "Bay Leaf"}})
+    client.post("/add", data={"list": "Demo", "item": "Bay Leaf", "amount": "1"})
+
+    page = client.get("/?list=Demo&timed=1").get_data(as_text=True)
+    assert page.find("Bay Leaf") < page.find("Maple Log")
+
+
+def test_list_name_filter_narrows_the_items(client):
+    client.post("/add", data={"list": "Demo", "item": "Iron Ore", "amount": "5"})
+    client.post("/add", data={"list": "Demo", "item": "Maple Log", "amount": "2"})
+    page = client.get("/?list=Demo&q=iron").get_data(as_text=True)
+    assert "Iron Ore" in page
+    assert "Maple Log" not in page
+
+
 def test_add_all_materials_via_post(client, monkeypatch):
     items = {
         "crested headband": {"row_id": 47184, "fields": {"Name": "Crested Headband"}},

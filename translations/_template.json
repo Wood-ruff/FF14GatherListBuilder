@@ -255,6 +255,14 @@
     "english": "Filter by name…",
     "translation": ""
   },
+  "list_filter_label": {
+    "english": "Filter",
+    "translation": ""
+  },
+  "timed_first": {
+    "english": "Timed first",
+    "translation": ""
+  },
   "scrip_only": {
     "english": "Scrip items only",
     "translation": ""

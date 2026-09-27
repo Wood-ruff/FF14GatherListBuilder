@@ -209,6 +209,26 @@ form {
   width: 50%;
 }
 
+.list-filter {
+  margin-bottom: 12px;
+}
+
+.list-filter .filter-row {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.list-filter .name-filter {
+  border-style: dashed;
+}
+
+.filter-label {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
 .grid-tools {
   display: flex;
   justify-content: flex-end;

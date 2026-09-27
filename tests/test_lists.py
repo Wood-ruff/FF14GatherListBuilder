@@ -319,6 +319,21 @@ def test_set_muted_round_trip(tmp_path, monkeypatch):
     assert lists.get_items("Mats")[0]["muted"] is False
 
 
+def test_timed_first_sorting(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    timed = {"timed": True, "times": [{"start": 600, "duration": 120}], "zone": None, "aetheryte": None}
+    lists.add_item("Mix", "Crested Headband", 1)
+    lists.add_item("Mix", "Copper Ore", 1)
+    monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: timed)
+    lists.add_item("Mix", "Iron Ore", 1)
+
+    names = [item["name"] for item in lists.get_items("Mix")]
+    assert names == ["Crested Headband", "Copper Ore", "Iron Ore"]
+
+    names = [item["name"] for item in lists.get_items("Mix", timed_first=True)]
+    assert names == ["Iron Ore", "Crested Headband", "Copper Ore"]
+
+
 def test_crystals_are_listed_last(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     lists.add_item("Mix", "Wind Cluster", 3)

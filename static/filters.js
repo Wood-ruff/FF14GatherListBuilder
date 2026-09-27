@@ -4,7 +4,7 @@ function setupLiveFilters(form) {
   let filterTimer = null;
 
   for (const field of Array.from(form.elements)) {
-    if (field.matches("select")) {
+    if (field.matches('select, input[type="checkbox"]')) {
       field.addEventListener("change", function () {
         form.submit();
       });
