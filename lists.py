@@ -477,7 +477,10 @@ def background_images():
     return sorted(names)
 
 
-BUILT_IN_ALARMS = ["classic-beep.wav", "chime.wav", "buzzer.wav"]
+BUILT_IN_ALARMS = [
+    "classic-beep.wav", "chime.wav", "buzzer.wav",
+    "bells.wav", "alert.wav", "sonar.wav", "tick-tock.wav", "fanfare.wav", "shop-bell.wav",
+]
 
 
 PAGE_SIZES = [25, 50, 100, 250]

@@ -17,16 +17,30 @@
   <header>
     <h1>Gather List Builder</h1>
     <div class="top-left">
-      <select id="alarm-toggle">
-        <option value="off">{{ t("alarm_off") }}</option>
-        <option value="on">{{ t("alarm_on") }}</option>
-      </select>
-      <select id="alarm-sound">
-        {% for sound in alarm_sounds %}
-        <option value="{{ sound }}" {% if sound == "chime.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
-        {% endfor %}
-      </select>
-      <button type="button" id="alarm-test" class="secondary" title="{{ t('alarm_test_title') }}">{{ t("alarm_test") }}</button>
+      <div class="corner-row">
+        <select id="alarm-toggle">
+          <option value="off">{{ t("alarm_off") }}</option>
+          <option value="on">{{ t("alarm_on") }}</option>
+        </select>
+        <select id="alarm-sound">
+          {% for sound in alarm_sounds %}
+          <option value="{{ sound }}" {% if sound == "chime.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" id="alarm-test" class="secondary" title="{{ t('alarm_test_title') }}">{{ t("alarm_test") }}</button>
+      </div>
+      <div class="corner-row">
+        <label class="switch">
+          <input type="checkbox" id="prealarm-toggle">
+          {{ t("prealarm") }}
+        </label>
+        <input type="number" id="prealarm-minutes" min="1" max="60" value="5" title="{{ t('prealarm_minutes') }}">
+        <select id="prealarm-sound">
+          {% for sound in alarm_sounds %}
+          <option value="{{ sound }}" {% if sound == "classic-beep.wav" %}selected{% endif %}>{{ sound.rsplit(".", 1)[0] }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
     <div class="top-right">
       <form method="post" action="/language">

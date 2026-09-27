@@ -586,6 +586,13 @@ def test_backgrounds_are_passed_to_the_page(client):
     assert "window.BACKGROUNDS" in page
 
 
+def test_prealarm_controls_are_rendered(client):
+    page = client.get("/").get_data(as_text=True)
+    assert 'id="prealarm-toggle"' in page
+    assert 'id="prealarm-minutes"' in page
+    assert 'id="prealarm-sound"' in page
+
+
 def test_alarm_dropdown_is_rendered(client):
     page = client.get("/").get_data(as_text=True)
     assert 'id="alarm-sound"' in page

@@ -5,6 +5,8 @@
   "alarm_off": "Alarm off",
   "alarm_on": "Alarm on",
   "alarm_test": "Test",
+  "prealarm": "Early warning",
+  "prealarm_minutes": "Minutes before a node comes up",
   "marked_alarms": "Marked alarms",
   "pins_persist": "Pinned always visible",
   "marked_filter_only": "Only alarm-marked",

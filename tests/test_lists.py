@@ -521,8 +521,9 @@ def test_refresh_prefers_the_id_lookup_for_localization(tmp_path, monkeypatch):
 
 def test_alarm_sounds_list_built_in_first_and_custom_last():
     sounds = lists.alarm_sounds()
-    assert sounds[:3] == ["classic-beep.wav", "chime.wav", "buzzer.wav"]
-    for custom in sounds[3:]:
+    built_in_count = len(lists.BUILT_IN_ALARMS)
+    assert sounds[:built_in_count] == lists.BUILT_IN_ALARMS
+    for custom in sounds[built_in_count:]:
         assert custom not in lists.BUILT_IN_ALARMS
 
 

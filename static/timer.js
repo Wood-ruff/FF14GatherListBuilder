@@ -63,6 +63,70 @@ function restoreAlarmSoundChoice(select) {
   }
 }
 
+let preAlarmSound = null;
+
+function preAlarmOn() {
+  const toggle = document.getElementById("prealarm-toggle");
+  return toggle !== null && toggle.checked;
+}
+
+function preAlarmThresholdMs() {
+  const field = document.getElementById("prealarm-minutes");
+  const minutes = field ? Number(field.value) : 0;
+  return minutes > 0 ? minutes * 60000 : 0;
+}
+
+function loadPreAlarmSound() {
+  const select = document.getElementById("prealarm-sound");
+  if (select === null || !select.value) {
+    return;
+  }
+  preAlarmSound = new Audio("/static/alarms/" + select.value);
+  preAlarmSound.volume = 0.25;
+}
+
+function playPreAlarm() {
+  if (preAlarmSound === null) {
+    return;
+  }
+  preAlarmSound.currentTime = 0;
+  preAlarmSound.play().catch(function () {});
+}
+
+function setupPreAlarm() {
+  const toggle = document.getElementById("prealarm-toggle");
+  if (toggle === null) {
+    return;
+  }
+  const minutes = document.getElementById("prealarm-minutes");
+  const select = document.getElementById("prealarm-sound");
+
+  try {
+    toggle.checked = localStorage.getItem("prealarm") === "on";
+    const savedMinutes = localStorage.getItem("prealarm-minutes");
+    if (savedMinutes) {
+      minutes.value = savedMinutes;
+    }
+    const savedSound = localStorage.getItem("prealarm-sound");
+    if (savedSound && Array.from(select.options).some(function (o) { return o.value === savedSound; })) {
+      select.value = savedSound;
+    }
+  } catch (error) {}
+  loadPreAlarmSound();
+
+  toggle.addEventListener("change", function () {
+    try { localStorage.setItem("prealarm", toggle.checked ? "on" : "off"); } catch (error) {}
+  });
+  minutes.addEventListener("change", function () {
+    try { localStorage.setItem("prealarm-minutes", minutes.value); } catch (error) {}
+  });
+  select.addEventListener("change", function () {
+    try { localStorage.setItem("prealarm-sound", select.value); } catch (error) {}
+    loadPreAlarmSound();
+    playPreAlarm();
+  });
+}
+
 function setupAlarmToggle() {
   const toggle = document.getElementById("alarm-toggle");
   const select = document.getElementById("alarm-sound");
@@ -88,11 +152,28 @@ function setupAlarmToggle() {
   document.getElementById("alarm-test").addEventListener("click", playAlarm);
 }
 
-function shouldAlarm(timer) {
+function alarmEligible(timer) {
   if (timer.dataset.alarm === "1") {
     return !alarmSuppressed(timer);
   }
   return alarmMarked(timer);
+}
+
+function checkPreWarning(timer, spawn) {
+  if (spawn.open || !preAlarmOn() || !alarmEligible(timer)) {
+    timer.dataset.preWarned = "0";
+    return false;
+  }
+  const waitMs = spawn.etMinutes * REAL_MS_PER_ET_MINUTE;
+  if (waitMs > preAlarmThresholdMs()) {
+    timer.dataset.preWarned = "0";
+    return false;
+  }
+  if (timer.dataset.preWarned === "1") {
+    return false;
+  }
+  timer.dataset.preWarned = "1";
+  return true;
 }
 
 function alarmMarked(timer) {
@@ -117,15 +198,19 @@ function alarmSuppressed(timer) {
 function updateTimers() {
   const now = eorzeaNowMinutes();
   let justOpened = false;
+  let justWarned = false;
   for (const timer of document.querySelectorAll(".node-timer")) {
     const spawn = nextSpawn(JSON.parse(timer.dataset.times), now);
     const time = formatRealDuration(spawn.etMinutes);
+    if (checkPreWarning(timer, spawn)) {
+      justWarned = true;
+    }
     if (spawn.open) {
       timer.textContent = msg("timer_up", "up now — {time} left").replace("{time}", time);
       timer.classList.add("open");
       if (timer.dataset.wasOpen !== "1") {
         timer.dataset.wasOpen = "1";
-        if (shouldAlarm(timer)) {
+        if (alarmEligible(timer)) {
           justOpened = true;
         }
       }
@@ -135,8 +220,12 @@ function updateTimers() {
       timer.dataset.wasOpen = "0";
     }
   }
-  if (justOpened && !firstTimerRun && alarmEnabled()) {
-    playAlarm();
+  if (!firstTimerRun) {
+    if (justOpened && alarmEnabled()) {
+      playAlarm();
+    } else if (justWarned) {
+      playPreAlarm();
+    }
   }
   firstTimerRun = false;
   renderTimersOverview();
@@ -295,6 +384,7 @@ function startTicking() {
 
 setupModal();
 setupAlarmToggle();
+setupPreAlarm();
 setupTimersOverview();
 setupTimerClicks();
 updateTimers();

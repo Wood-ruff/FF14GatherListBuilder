@@ -5,6 +5,8 @@
   "alarm_off": "Alarm aus",
   "alarm_on": "Alarm an",
   "alarm_test": "Test",
+  "prealarm": "Vorwarnung",
+  "prealarm_minutes": "Minuten bevor ein Vorkommen erscheint",
   "marked_alarms": "Markierte Alarme",
   "pins_persist": "Angeheftete immer sichtbar",
   "marked_filter_only": "Nur markierte Items",

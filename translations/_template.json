@@ -23,6 +23,14 @@
     "english": "Test",
     "translation": ""
   },
+  "prealarm": {
+    "english": "Early warning",
+    "translation": ""
+  },
+  "prealarm_minutes": {
+    "english": "Minutes before a node comes up",
+    "translation": ""
+  },
   "marked_alarms": {
     "english": "Marked alarms",
     "translation": ""
