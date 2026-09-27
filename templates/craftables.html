@@ -9,6 +9,7 @@
 {% endmacro %}
 
 {% block content %}
+    {% set craft_jobs = ["Carpenter", "Blacksmith", "Armorer", "Goldsmith", "Leatherworker", "Weaver", "Alchemist", "Culinarian"] %}
     {% with picker_action = "/craftables" %}{% include "_list_picker.html" %}{% endwith %}
 
     <section class="card">
@@ -30,7 +31,7 @@
         <div class="filter-row">
         <select name="job">
           <option value="all" {% if job == "all" %}selected{% endif %}>{{ t("all_jobs") }}</option>
-          {% for craft in ["Carpenter", "Blacksmith", "Armorer", "Goldsmith", "Leatherworker", "Weaver", "Alchemist", "Culinarian"] %}
+          {% for craft in craft_jobs %}
           <option value="{{ craft | lower }}" {% if job == craft | lower %}selected{% endif %}>{{ craft }}</option>
           {% endfor %}
         </select>
@@ -42,8 +43,32 @@
         <input name="min" type="number" min="1" max="100" placeholder="{{ t('min_level') }}" value="{{ min_level }}">
         <input name="max" type="number" min="1" max="100" placeholder="{{ t('max_level') }}" value="{{ max_level }}">
         <input name="minscrips" type="number" min="1" placeholder="{{ t('min_scrips') }}" value="{{ min_scrips }}">
+        <button type="button" id="craft-costs-open" class="secondary push-right">{{ t("craft_costs_button") }}</button>
         </div>
       </form>
+
+      <div id="craft-costs-modal" class="modal" hidden>
+        <div class="modal-box timers-box">
+          <h3>{{ t("craft_costs_button") }}</h3>
+          <div class="filter-row">
+            <input type="number" id="craft-costs-level" min="1" max="100" value="100" title="{{ t('header_level') }}">
+            <select id="craft-costs-job">
+              <option value="all">{{ t("all_jobs") }}</option>
+              {% for craft in craft_jobs %}
+              <option value="{{ craft | lower }}">{{ craft }}</option>
+              {% endfor %}
+            </select>
+            <label class="switch">
+              <input type="checkbox" id="craft-costs-orange"> {{ t("rotation_orange") }}
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="craft-costs-gemstone"> {{ t("craft_costs_gemstone_toggle") }}
+            </label>
+          </div>
+          <div id="craft-costs-list"></div>
+          <button type="button" id="craft-costs-close" class="secondary">{{ t("modal_close") }}</button>
+        </div>
+      </div>
 
       <div class="grid-tools">
         <button type="button" class="refresh-page" title="{{ t('refresh') }}">&#10227;</button>
@@ -101,4 +126,8 @@
       <p class="muted">{{ t("no_matches") }}</p>
       {% endif %}
     </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='craft-costs.js') }}"></script>
 {% endblock %}

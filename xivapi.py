@@ -17,6 +17,7 @@ GATHERING = {}
 AETHERYTES = {}
 COLLECTABLES = {}
 CRAFTABLES = {}
+MATERIAL_SOURCES = {}
 DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
 
@@ -42,6 +43,7 @@ def clear_cache():
     AETHERYTES.clear()
     COLLECTABLES.clear()
     CRAFTABLES.clear()
+    MATERIAL_SOURCES.clear()
     DOWNLOADED_ICONS.clear()
     item_cache.clear()
 
@@ -149,6 +151,11 @@ def fetch_recipe_row(recipe_id):
     if not data:
         return None
     fields = data["fields"]
+    return {"yields": fields["AmountResult"], "ingredients": recipe_ingredients(fields)}
+
+
+def recipe_ingredients(fields):
+    """Return the usable ingredients of one recipe row's fields."""
     ingredients = []
     for ingredient, amount in zip(fields["Ingredient"], fields["AmountIngredient"]):
         if amount > 0 and ingredient["row_id"] > 0:
@@ -157,7 +164,7 @@ def fetch_recipe_row(recipe_id):
                 "game_id": ingredient["row_id"],
                 "amount": amount,
             })
-    return {"yields": fields["AmountResult"], "ingredients": ingredients}
+    return ingredients
 
 
 def fetch_item_by_id(game_id):
@@ -726,6 +733,8 @@ def fetch_craftables():
     if language in CRAFTABLES:
         return CRAFTABLES[language]
     data = item_cache.get_fresh_result(language, "craftables")
+    if data and "ingredients" not in data[0]:
+        data = None
     if data is None:
         data = lookup_craftables()
         if data is not None:
@@ -747,7 +756,8 @@ def lookup_craftables():
 
 RECIPE_LIST_FIELDS = (
     "ItemResult.Name,CraftType.Name,"
-    "RecipeLevelTable.ClassJobLevel,RecipeLevelTable.Stars"
+    "RecipeLevelTable.ClassJobLevel,RecipeLevelTable.Stars,"
+    "AmountResult,Ingredient[].Name,AmountIngredient"
 )
 
 
@@ -787,11 +797,206 @@ def build_craftables(recipes, scrips):
             "stars": level["Stars"],
             "jobs": [],
             "scrips": scrips.get(item["row_id"]),
+            "yields": recipe["fields"]["AmountResult"],
+            "ingredients": recipe_ingredients(recipe["fields"]),
         })
         job = recipe["fields"]["CraftType"]["fields"]["Name"]
         if job not in entry["jobs"]:
             entry["jobs"].append(job)
     return list(entries.values())
+
+
+RAW_ITEM_FIELD = "Item@as(raw)"
+SPECIAL_SHOP_FIELDS = (
+    "Item[].Item@as(raw),Item[].ItemCost@as(raw),"
+    "Item[].Quest@as(raw),Item[].AchievementUnlock@as(raw)"
+)
+TRANSIENT_RAW_FIELDS = "EphemeralStartTime,GatheringRarePopTimeTable@as(raw)"
+BICOLOR_GEMSTONE_ID = 26807
+
+
+def fetch_material_sources():
+    """Return item ids by acquisition source from memory, the cache file, or the api."""
+    if MATERIAL_SOURCES:
+        return dict(MATERIAL_SOURCES)
+    data = item_cache.get_fresh_result("all", "material_sources")
+    if data and ("timed" not in data or "gemstone" not in data):
+        data = None
+    if data is None:
+        data = lookup_material_sources()
+        if data is not None:
+            item_cache.store_result("all", data, "material_sources")
+    if data is not None:
+        MATERIAL_SOURCES.update(data)
+    return data
+
+
+def lookup_material_sources():
+    """Fetch which items are gatherable, bought, unlock gated or on timed nodes only."""
+    nodes = node_item_sources()
+    if nodes is None:
+        return None
+    gatherable, timed = nodes
+    for sheet in ("FishParameter", "SpearfishingItem"):
+        ids = sheet_item_ids(sheet)
+        if ids is None:
+            return None
+        gatherable.update(ids)
+    gil = sheet_item_ids("GilShopItem")
+    if gil is None:
+        return None
+    seals = sheet_item_ids("GCScripShopItem")
+    if seals is None:
+        return None
+    special = special_shop_items()
+    if special is None:
+        return None
+    open_ids, locked_ids, gemstone_ids = special
+    return {
+        "gatherable": sorted(gatherable),
+        "timed": sorted(timed),
+        "gil": sorted(gil),
+        "special": sorted(open_ids | locked_ids | set(seals)),
+        "locked": sorted(locked_ids - open_ids - set(seals)),
+        "gemstone": sorted(gemstone_ids),
+    }
+
+
+def node_item_sources():
+    """Return all node gatherable item ids and the ones found on timed nodes only."""
+    gi_map = gathering_item_map()
+    if gi_map is None:
+        return None
+    base_members = sheet_rows("GatheringPointBase", RAW_ITEM_FIELD)
+    if base_members is None:
+        return None
+    point_bases = sheet_rows("GatheringPoint", "GatheringPointBase@as(raw)")
+    if point_bases is None:
+        return None
+    transients = sheet_rows("GatheringPointTransient", TRANSIENT_RAW_FIELDS)
+    if transients is None:
+        return None
+    pointed_bases = {fields["GatheringPointBase@as(raw)"] for fields in point_bases.values()}
+    timed_bases = timed_base_ids(point_bases, transients)
+    return classify_node_items(gi_map, base_members, pointed_bases, timed_bases)
+
+
+def classify_node_items(gi_map, base_members, pointed_bases, timed_bases):
+    """Split node items into all gatherable ids and the ids on timed nodes only."""
+    gatherable = set()
+    timed = set()
+    untimed = set()
+    for base_id, fields in base_members.items():
+        for gi_id in fields[RAW_ITEM_FIELD]:
+            item_id = gi_map.get(gi_id)
+            if item_id is None:
+                continue
+            gatherable.add(item_id)
+            if base_id in timed_bases:
+                timed.add(item_id)
+            elif base_id in pointed_bases:
+                untimed.add(item_id)
+    return gatherable, timed - untimed
+
+
+def timed_base_ids(point_bases, transients):
+    """Return the node base ids whose gathering points only spawn in time windows."""
+    timed = set()
+    for point_id, fields in point_bases.items():
+        base_id = fields["GatheringPointBase@as(raw)"]
+        if base_id > 0 and transient_is_timed(transients.get(point_id)):
+            timed.add(base_id)
+    return timed
+
+
+def transient_is_timed(fields):
+    """Check whether a gathering point's spawns are bound to time windows."""
+    if fields is None:
+        return False
+    if fields["GatheringRarePopTimeTable@as(raw)"] > 0:
+        return True
+    return fields["EphemeralStartTime"] != NO_TIME
+
+
+def gathering_item_map():
+    """Map gathering item row ids to their item ids, paging the GatheringItem sheet."""
+    params = {"sheets": "GatheringItem", "query": "Item>0", "limit": 500, "fields": RAW_ITEM_FIELD}
+    mapping = {}
+    for _page in range(40):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        for row in data["results"]:
+            mapping[row["row_id"]] = row["fields"][RAW_ITEM_FIELD]
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": RAW_ITEM_FIELD}
+    return mapping
+
+
+def sheet_rows(sheet, fields, limit=500):
+    """Return one whole sheet as row id to fields, paging through it."""
+    url = f"{SHEET_URL}/{sheet}"
+    params = {"limit": limit, "fields": fields}
+    rows = {}
+    for _page in range(40):
+        data = get_json(url, params)
+        if data is None:
+            return None
+        for row in data["rows"]:
+            rows[row["row_id"]] = row["fields"]
+        if len(data["rows"]) < limit:
+            break
+        params = dict(params, after=data["rows"][-1]["row_id"])
+    return rows
+
+
+def sheet_item_ids(sheet):
+    """Collect the distinct item ids of one sheet's Item column, paging the sheet."""
+    params = {"sheets": sheet, "query": "Item>0", "limit": 500, "fields": RAW_ITEM_FIELD}
+    ids = set()
+    for _page in range(40):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        for row in data["results"]:
+            ids.add(row["fields"][RAW_ITEM_FIELD])
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": RAW_ITEM_FIELD}
+    return sorted(ids)
+
+
+def special_shop_items():
+    """Collect special shop item ids: freely bought, unlock gated, gemstone only."""
+    shops = sheet_rows("SpecialShop", SPECIAL_SHOP_FIELDS, limit=100)
+    if shops is None:
+        return None
+    open_ids = set()
+    locked_ids = set()
+    gemstone_ids = set()
+    other_ids = set()
+    for fields in shops.values():
+        collect_special_trades(fields["Item"], open_ids, locked_ids, gemstone_ids, other_ids)
+    return open_ids, locked_ids, gemstone_ids - other_ids
+
+
+def collect_special_trades(trades, open_ids, locked_ids, gemstone_ids, other_ids):
+    """Sort one shop's received item ids by unlock gating and by cost currency."""
+    for trade in trades:
+        gated = trade.get("Quest@as(raw)", 0) > 0 or trade.get("AchievementUnlock@as(raw)", 0) > 0
+        costs = {cost for cost in trade.get("ItemCost@as(raw)", []) if cost > 0}
+        for item_id in trade.get(RAW_ITEM_FIELD, []):
+            if item_id <= 0:
+                continue
+            if gated:
+                locked_ids.add(item_id)
+            else:
+                open_ids.add(item_id)
+            if costs == {BICOLOR_GEMSTONE_ID}:
+                gemstone_ids.add(item_id)
+            else:
+                other_ids.add(item_id)
 
 
 def search_rows(sheet, query, fields=None, limit=1):

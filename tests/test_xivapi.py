@@ -16,6 +16,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.GATHERING.clear()
     xivapi.COLLECTABLES.clear()
     xivapi.CRAFTABLES.clear()
+    xivapi.MATERIAL_SOURCES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
 
@@ -546,6 +547,13 @@ RECIPE_PAGE = {"results": [
             "ItemResult": {"row_id": 43954, "fields": {"Name": "Rarefied Tacos de Carne Asada"}},
             "CraftType": {"row_id": 7, "fields": {"Name": "Cooking"}},
             "RecipeLevelTable": {"fields": {"ClassJobLevel": 100, "Stars": 1}},
+            "AmountResult": 1,
+            "AmountIngredient": [2, 1, 0],
+            "Ingredient": [
+                {"row_id": 44137, "fields": {"Name": "Beef Skirt Steak"}},
+                {"row_id": 8, "fields": {"Name": "Fire Crystal"}},
+                {"row_id": 0, "fields": {"Name": ""}},
+            ],
         },
     },
     {
@@ -554,6 +562,9 @@ RECIPE_PAGE = {"results": [
             "ItemResult": {"row_id": 31100, "fields": {"Name": "Oddly Specific Lumber"}},
             "CraftType": {"row_id": 0, "fields": {"Name": "Woodworking"}},
             "RecipeLevelTable": {"fields": {"ClassJobLevel": 80, "Stars": 0}},
+            "AmountResult": 1,
+            "AmountIngredient": [5],
+            "Ingredient": [{"row_id": 29970, "fields": {"Name": "Odd Log"}}],
         },
     },
     {
@@ -562,6 +573,9 @@ RECIPE_PAGE = {"results": [
             "ItemResult": {"row_id": 31100, "fields": {"Name": "Oddly Specific Lumber"}},
             "CraftType": {"row_id": 1, "fields": {"Name": "Smithing"}},
             "RecipeLevelTable": {"fields": {"ClassJobLevel": 80, "Stars": 0}},
+            "AmountResult": 1,
+            "AmountIngredient": [5],
+            "Ingredient": [{"row_id": 29970, "fields": {"Name": "Odd Log"}}],
         },
     },
 ]}
@@ -594,6 +608,11 @@ def test_fetch_craftables_groups_jobs_per_item(monkeypatch):
             "stars": 1,
             "jobs": ["Cooking"],
             "scrips": {"low": 12, "mid": 18, "high": 27},
+            "yields": 1,
+            "ingredients": [
+                {"name": "Beef Skirt Steak", "game_id": 44137, "amount": 2},
+                {"name": "Fire Crystal", "game_id": 8, "amount": 1},
+            ],
         },
         {
             "game_id": 31100,
@@ -602,6 +621,8 @@ def test_fetch_craftables_groups_jobs_per_item(monkeypatch):
             "stars": 0,
             "jobs": ["Woodworking", "Smithing"],
             "scrips": None,
+            "yields": 1,
+            "ingredients": [{"name": "Odd Log", "game_id": 29970, "amount": 5}],
         },
     ]
 
@@ -617,6 +638,113 @@ def test_fetch_craftables_is_cached(monkeypatch):
     monkeypatch.setattr("requests.get", no_more_calls)
     xivapi.CRAFTABLES.clear()
     assert len(xivapi.fetch_craftables()) == 2
+
+
+SEARCH_ITEM_ROWS = {
+    "GatheringItem": {11: 101, 12: 102},
+    "FishParameter": {21: 103},
+    "SpearfishingItem": {31: 104},
+    "GilShopItem": {262144: 201, 262145: 101},
+    "GCScripShopItem": {41: 303},
+}
+
+SPECIAL_SHOP_PAGE = {"rows": [
+    {"row_id": 1769601, "fields": {"Item": [
+        {"Item@as(raw)": [301, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [302], "Quest@as(raw)": 70000, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [301], "Quest@as(raw)": 70000, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [304], "ItemCost@as(raw)": [26807, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [305], "ItemCost@as(raw)": [26807, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+        {"Item@as(raw)": [305], "ItemCost@as(raw)": [28, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
+    ]}},
+]}
+
+NODE_SHEET_PAGES = {
+    "GatheringPointBase": {"rows": [
+        {"row_id": 500, "fields": {"Item@as(raw)": [11, 0]}},
+        {"row_id": 501, "fields": {"Item@as(raw)": [12, 0]}},
+    ]},
+    "GatheringPointTransient": {"rows": [
+        {"row_id": 900, "fields": {"EphemeralStartTime": 65535, "GatheringRarePopTimeTable@as(raw)": 5}},
+        {"row_id": 901, "fields": {"EphemeralStartTime": 65535, "GatheringRarePopTimeTable@as(raw)": 0}},
+    ]},
+    "GatheringPoint": {"rows": [
+        {"row_id": 900, "fields": {"GatheringPointBase@as(raw)": 500}},
+        {"row_id": 901, "fields": {"GatheringPointBase@as(raw)": 501}},
+    ]},
+}
+
+
+def material_sources_api(url, params=None, **kwargs):
+    for sheet, page in NODE_SHEET_PAGES.items():
+        if url.endswith("/" + sheet):
+            return FakeResponse(page)
+    if url.endswith("/SpecialShop"):
+        return FakeResponse(SPECIAL_SHOP_PAGE)
+    rows = SEARCH_ITEM_ROWS[params["sheets"]]
+    return FakeResponse({"results": [
+        {"row_id": row_id, "fields": {"Item@as(raw)": item_id}} for row_id, item_id in rows.items()
+    ]})
+
+
+def test_fetch_material_sources_classifies_item_ids(monkeypatch):
+    monkeypatch.setattr("requests.get", material_sources_api)
+    sources = xivapi.fetch_material_sources()
+    assert sources["gatherable"] == [101, 102, 103, 104]
+    assert sources["timed"] == [101]
+    assert sources["gil"] == [101, 201]
+    assert sources["special"] == [301, 302, 303, 304, 305]
+    assert sources["locked"] == [302]
+    assert sources["gemstone"] == [304]
+
+
+def test_timed_items_need_all_their_nodes_timed(monkeypatch):
+    monkeypatch.setitem(NODE_SHEET_PAGES, "GatheringPointBase", {"rows": [
+        {"row_id": 500, "fields": {"Item@as(raw)": [11, 0]}},
+        {"row_id": 501, "fields": {"Item@as(raw)": [12, 11]}},
+    ]})
+    monkeypatch.setattr("requests.get", material_sources_api)
+    sources = xivapi.fetch_material_sources()
+    assert sources["timed"] == []
+
+
+def test_bases_without_gathering_points_do_not_vote_untimed(monkeypatch):
+    monkeypatch.setitem(NODE_SHEET_PAGES, "GatheringPointBase", {"rows": [
+        {"row_id": 500, "fields": {"Item@as(raw)": [11, 0]}},
+        {"row_id": 502, "fields": {"Item@as(raw)": [11, 0]}},
+    ]})
+    monkeypatch.setattr("requests.get", material_sources_api)
+    assert xivapi.fetch_material_sources()["timed"] == [101]
+
+
+def test_old_shape_cached_material_sources_are_refetched(monkeypatch):
+    old = {"gatherable": [], "gil": [], "special": [], "locked": []}
+    item_cache.store_result("all", old, "material_sources")
+    monkeypatch.setattr("requests.get", material_sources_api)
+    assert xivapi.fetch_material_sources()["timed"] == [101]
+
+
+def test_fetch_material_sources_is_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", material_sources_api)
+    xivapi.fetch_material_sources()
+    assert item_cache.load_cache()["material_sources:all"]["type"] == "material_sources"
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.MATERIAL_SOURCES.clear()
+    assert xivapi.fetch_material_sources()["locked"] == [302]
+
+
+def test_old_shape_cached_craftables_are_refetched(monkeypatch):
+    old_entry = {"game_id": 1, "name": "Old", "level": 100, "stars": 0, "jobs": [], "scrips": None}
+    item_cache.store_result("en", [old_entry], "craftables")
+    monkeypatch.setattr("requests.get", craftables_api)
+    assert xivapi.fetch_craftables()[0]["ingredients"] == [
+        {"name": "Beef Skirt Steak", "game_id": 44137, "amount": 2},
+        {"name": "Fire Crystal", "game_id": 8, "amount": 1},
+    ]
 
 
 def test_old_shape_cached_recipe_is_refetched(monkeypatch):

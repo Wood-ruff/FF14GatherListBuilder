@@ -811,6 +811,31 @@ tr.done .copy-name {
   width: 80px;
 }
 
+#craft-costs-level {
+  width: 80px;
+}
+
+.craft-score {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-marker,
+.lock-marker {
+  margin-left: 6px;
+  cursor: help;
+}
+
+.loot-marker {
+  color: #e07a5f;
+}
+
+.node-items .mat-loot,
+.node-items .mat-gemstone {
+  color: #e07a5f;
+}
+
 .node-items {
   text-align: right;
   color: var(--text-muted);

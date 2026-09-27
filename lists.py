@@ -703,6 +703,148 @@ def rotation_job_matches(job, jobs):
     return False
 
 
+UNIQUE_MATERIAL_WEIGHT = 10
+
+MATERIAL_COST_WEIGHTS = {
+    "crystal": 0.25,
+    "gather": 1,
+    "gather_timed": 2,
+    "gil": 0.5,
+    "special": 0.5,
+    "special_locked": 6,
+    "gemstone": 8,
+    "gemstone_unlocked": 0.5,
+    "loot": 8,
+}
+
+
+def get_craft_costs(level, job, orange_scrips, gemstones_unlocked=False):
+    """Return scrip craftables ranked by material cost per scrip, cheapest first."""
+    sources = material_source_sets()
+    entries = []
+    for craftable in get_craftables(job=job, scrip_mode="scrip"):
+        if not craft_level_matches(craftable["level"], level, orange_scrips):
+            continue
+        entry = craft_cost_entry(craftable, sources, gemstones_unlocked)
+        if entry:
+            entries.append(entry)
+    return sorted(entries, key=lambda entry: entry["score"])
+
+
+def material_source_sets():
+    """Return the acquisition source item id sets, or None while xivapi is unreachable."""
+    sources = xivapi.fetch_material_sources()
+    if sources is None:
+        return None
+    return {key: set(ids) for key, ids in sources.items()}
+
+
+def craft_level_matches(craft_level, level, orange_scrips):
+    """Check whether a recipe level fits the level cap and the scrip color."""
+    if craft_level > level:
+        return False
+    if orange_scrips:
+        return craft_level == 100
+    return craft_level <= 99
+
+
+def craft_cost_entry(craftable, sources, gemstones_unlocked):
+    """Build one cost entry with material counts and score, or None without recipe data."""
+    materials = craft_materials(craftable, sources)
+    scrips = craftable["scrips"]["high"] * craftable.get("yields", 1)
+    if not materials or scrips <= 0:
+        return None
+    cost = material_cost(materials, gemstones_unlocked)
+    return {
+        "game_id": craftable["game_id"],
+        "name": craftable["name"],
+        "jobs": craftable["jobs"],
+        "level": craftable["level"],
+        "stars": craftable["stars"],
+        "scrips": scrips,
+        "materials": materials,
+        "unique_materials": sum(1 for m in materials if m["source"] != "crystal"),
+        "total_materials": sum(m["amount"] for m in materials if m["source"] != "crystal"),
+        "has_loot": any(is_looted(m, gemstones_unlocked) for m in materials),
+        "has_locked": any(m["locked"] for m in materials),
+        "cost": round(cost, 2),
+        "score": round(cost / scrips, 3),
+    }
+
+
+def craft_materials(craftable, sources):
+    """Resolve the craftable's ingredients to base materials marked with their sources."""
+    totals = {}
+    for ingredient in craftable.get("ingredients") or []:
+        add_base_material(totals, ingredient, ingredient["amount"], sources, depth=0)
+    return list(totals.values())
+
+
+def add_base_material(totals, ingredient, amount, sources, depth):
+    """Accumulate one ingredient, expanding crafted intermediates recursively."""
+    source = material_source(ingredient["game_id"], sources)
+    if source == "loot" and depth < MAX_RECIPE_DEPTH:
+        recipe = xivapi.fetch_recipe(ingredient["name"])
+        if recipe:
+            crafts = math.ceil(amount / recipe["yields"])
+            for sub_ingredient in recipe["ingredients"]:
+                add_base_material(totals, sub_ingredient, sub_ingredient["amount"] * crafts, sources, depth + 1)
+            return
+    entry = totals.setdefault(ingredient["game_id"], {
+        "name": ingredient["name"],
+        "game_id": ingredient["game_id"],
+        "amount": 0,
+        "source": source,
+        "locked": source == "special" and ingredient["game_id"] in sources["locked"],
+        "timed": sources is not None and source == "gather" and ingredient["game_id"] in sources["timed"],
+    })
+    entry["amount"] += amount
+
+
+def material_source(game_id, sources):
+    """Classify how one material is acquired, treating unknown items as loot."""
+    if game_id in CRYSTAL_GAME_IDS:
+        return "crystal"
+    if sources is None or game_id in sources["gatherable"]:
+        return "gather"
+    if game_id in sources["gil"]:
+        return "gil"
+    if game_id in sources["gemstone"]:
+        return "gemstone"
+    if game_id in sources["special"]:
+        return "special"
+    return "loot"
+
+
+def material_cost(materials, gemstones_unlocked):
+    """Weigh material amounts, unique material types and their sources into one cost."""
+    cost = 0
+    for material in materials:
+        weight_key = material_weight_key(material, gemstones_unlocked)
+        cost += material["amount"] * MATERIAL_COST_WEIGHTS[weight_key]
+        if material["source"] != "crystal":
+            cost += UNIQUE_MATERIAL_WEIGHT
+    return cost
+
+
+def material_weight_key(material, gemstones_unlocked):
+    """Pick the cost weight of one material from its source and its restrictions."""
+    if material["locked"]:
+        return "special_locked"
+    if material["timed"]:
+        return "gather_timed"
+    if material["source"] == "gemstone" and gemstones_unlocked:
+        return "gemstone_unlocked"
+    return material["source"]
+
+
+def is_looted(material, gemstones_unlocked):
+    """Check whether a material has to be taken from enemies."""
+    if material["source"] == "loot":
+        return True
+    return material["source"] == "gemstone" and not gemstones_unlocked
+
+
 def alarm_sounds():
     """Return all alarm sound file names, built-in sounds first, custom ones after."""
     found = []

@@ -55,6 +55,58 @@
     "english": "Nothing matches — check level and professions.",
     "translation": ""
   },
+  "craft_costs_button": {
+    "english": "Cheapest scrip crafts",
+    "translation": ""
+  },
+  "craft_costs_empty": {
+    "english": "Nothing matches — check level and job.",
+    "translation": ""
+  },
+  "craft_costs_scrips": {
+    "english": "{scrips} scrips",
+    "translation": ""
+  },
+  "craft_costs_score": {
+    "english": "{score} effort per scrip",
+    "translation": ""
+  },
+  "craft_costs_loot": {
+    "english": "mob drop",
+    "translation": ""
+  },
+  "craft_costs_gemstone": {
+    "english": "mob drop / gemstone vendor",
+    "translation": ""
+  },
+  "craft_costs_gemstone_toggle": {
+    "english": "Gemstone vendors unlocked",
+    "translation": ""
+  },
+  "craft_costs_gil": {
+    "english": "gil vendor",
+    "translation": ""
+  },
+  "craft_costs_special": {
+    "english": "currency vendor",
+    "translation": ""
+  },
+  "craft_costs_loot_hint": {
+    "english": "Needs materials dropped by enemies",
+    "translation": ""
+  },
+  "craft_costs_locked_hint": {
+    "english": "Needs a vendor that must be unlocked first",
+    "translation": ""
+  },
+  "craft_costs_locked": {
+    "english": "needs unlock",
+    "translation": ""
+  },
+  "craft_costs_timed": {
+    "english": "timed node",
+    "translation": ""
+  },
   "alarm_mark_tooltip": {
     "english": "Sound the alarm when this node comes up (needs marked alarms on)",
     "translation": ""

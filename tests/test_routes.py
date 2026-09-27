@@ -11,6 +11,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
     monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: None)
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 
@@ -481,6 +482,22 @@ def test_rotation_endpoint_returns_matches(client, monkeypatch):
     result = client.get("/rotation?level=100&jobs=botanist&scrips=purple").get_json()
     assert [entry["name"] for entry in result] == ["Purple Leaf"]
     assert client.get("/rotation?level=100&jobs=miner&scrips=purple").get_json() == []
+
+
+def test_craft_costs_endpoint_ranks_cheapest_first(client, monkeypatch):
+    entries = [
+        {"game_id": 1, "name": "Pricey", "level": 100, "stars": 1, "jobs": ["Cooking"],
+         "scrips": {"low": 20, "mid": 35, "high": 50}, "yields": 1,
+         "ingredients": [{"name": f"Mat {n}", "game_id": 100 + n, "amount": 20} for n in range(1, 6)]},
+        {"game_id": 2, "name": "Cheap", "level": 100, "stars": 1, "jobs": ["Cooking"],
+         "scrips": {"low": 20, "mid": 35, "high": 50}, "yields": 1,
+         "ingredients": [{"name": "Meat", "game_id": 100, "amount": 100}]},
+    ]
+    monkeypatch.setattr("xivapi.fetch_craftables", lambda: entries)
+    result = client.get("/craft-costs?level=100&job=all&scrips=orange").get_json()
+    assert [entry["name"] for entry in result] == ["Cheap", "Pricey"]
+    assert client.get("/craft-costs?level=100&job=all&scrips=purple").get_json() == []
+    assert client.get("/craft-costs?level=100&job=blacksmith&scrips=orange").get_json() == []
 
 
 def test_collectables_are_paginated(client, monkeypatch):

@@ -249,6 +249,17 @@ def rotation():
     return jsonify(entries)
 
 
+@routes.get("/craft-costs")
+def craft_costs():
+    """Return scrip craftables ranked by material cost for the calculator popup as JSON."""
+    level = request.args.get("level", "")
+    job = request.args.get("job", "all")
+    orange = request.args.get("scrips") == "orange"
+    gemstones = request.args.get("gemstones") == "unlocked"
+    entries = lists.get_craft_costs(int(level) if level.isdigit() else 100, job, orange, gemstones)
+    return jsonify(entries)
+
+
 @routes.get("/suggest")
 def suggest_items():
     """Return item name suggestions for a partial search as JSON."""
