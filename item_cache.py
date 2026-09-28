@@ -1,16 +1,44 @@
 import json
 import logging
-import os
 import shutil
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
+
+import jsonfile
 
 CACHE_FILE = Path(__file__).parent / "data" / "cache" / "item_cache.json"
 ICONS_DIR = Path(__file__).parent / "data" / "cache" / "icons"
 MAX_AGE_DAYS = 60
 
 CACHE_LOCK = threading.Lock()
+MEMORY = {"path": None, "stamp": None, "cache": None}
+
+FETCH_LOCKS = {}
+FETCH_LOCKS_GUARD = threading.Lock()
+FETCHES = {"count": 0}
+
+
+def fetch_lock(name):
+    """Return the lock that lets only one fetch of the named data run at a time."""
+    with FETCH_LOCKS_GUARD:
+        return FETCH_LOCKS.setdefault(name, threading.Lock())
+
+
+def counted_fetch(lookup):
+    """Run one lookup while counting it as a running background fetch."""
+    with FETCH_LOCKS_GUARD:
+        FETCHES["count"] += 1
+    try:
+        return lookup()
+    finally:
+        with FETCH_LOCKS_GUARD:
+            FETCHES["count"] -= 1
+
+
+def fetches_running():
+    """Tell whether any counted lookup is currently fetching data."""
+    return FETCHES["count"] > 0
 
 LOG = logging.getLogger(__name__)
 
@@ -60,12 +88,13 @@ def store_results(results, kind):
 
 
 def save_cache(cache):
-    """Write the full cache contents to a temp file and swap it in atomically."""
+    """Write the full cache contents to disk and keep the memory copy current."""
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temp_file = CACHE_FILE.with_suffix(".tmp")
-    with open(temp_file, "w", encoding="utf-8") as file:
-        json.dump(cache, file, indent=2)
-    os.replace(temp_file, CACHE_FILE)
+    written = jsonfile.write_json_file(CACHE_FILE, cache)
+    MEMORY["cache"] = cache
+    MEMORY["path"] = CACHE_FILE
+    if written:
+        MEMORY["stamp"] = file_stamp()
 
 
 def cache_key(name, kind):
@@ -108,9 +137,28 @@ def load_cache():
 
 
 def read_cache_file():
-    """Parse the cache file, salvaging what a damaged file still holds."""
+    """Return the cache contents, parsing the file only when it changed on disk."""
     if not CACHE_FILE.exists():
-        return {}
+        MEMORY["cache"] = {}
+        MEMORY["path"] = CACHE_FILE
+        MEMORY["stamp"] = None
+        return MEMORY["cache"]
+    stamp = file_stamp()
+    if MEMORY["cache"] is None or MEMORY["path"] != CACHE_FILE or MEMORY["stamp"] != stamp:
+        MEMORY["cache"] = parse_cache_file()
+        MEMORY["path"] = CACHE_FILE
+        MEMORY["stamp"] = stamp
+    return MEMORY["cache"]
+
+
+def file_stamp():
+    """Return the cache file's change marker of modification time and size."""
+    stat = CACHE_FILE.stat()
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+def parse_cache_file():
+    """Parse the cache file, salvaging what a damaged file still holds."""
     with open(CACHE_FILE, encoding="utf-8") as file:
         text = file.read()
     try:

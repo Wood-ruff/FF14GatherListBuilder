@@ -98,6 +98,47 @@ def test_storing_heals_a_damaged_cache_file():
     assert healed["item:coke"]["result"] == {"row_id": 1}
 
 
+def test_cache_reads_reuse_memory_until_the_file_changes(monkeypatch):
+    item_cache.store_result("Iron Ore", RESULT)
+    parses = {"count": 0}
+    real_parse = item_cache.parse_cache_file
+
+    def counting_parse():
+        parses["count"] += 1
+        return real_parse()
+
+    monkeypatch.setattr("item_cache.parse_cache_file", counting_parse)
+    item_cache.load_cache()
+    item_cache.load_cache()
+    assert parses["count"] == 0
+    cache = dict(item_cache.load_cache())
+    cache["item:external"] = {"fetchdate": "2099-01-01", "type": "item", "result": 1}
+    item_cache.CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
+    assert "item:external" in item_cache.load_cache()
+
+
+def test_counted_fetch_tracks_running_lookups():
+    seen = {}
+
+    def lookup():
+        seen["running"] = item_cache.fetches_running()
+        return 42
+
+    assert not item_cache.fetches_running()
+    assert item_cache.counted_fetch(lookup) == 42
+    assert seen["running"] is True
+    assert not item_cache.fetches_running()
+
+
+def test_counted_fetch_recovers_from_errors():
+    def broken_lookup():
+        raise ValueError("nope")
+
+    with pytest.raises(ValueError):
+        item_cache.counted_fetch(broken_lookup)
+    assert not item_cache.fetches_running()
+
+
 def test_item_and_recipe_entries_are_separate():
     recipe = {"yields": 1, "ingredients": []}
     item_cache.store_result("Iron Ore", RESULT, "item")

@@ -667,6 +667,10 @@
     "english": "Background adding finished — list updated",
     "translation": ""
   },
+  "toast_fetch_done_reload": {
+    "english": "Game data fetched — view updated",
+    "translation": ""
+  },
   "timer_up": {
     "english": "up now — {time} left",
     "translation": ""

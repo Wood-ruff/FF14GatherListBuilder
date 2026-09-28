@@ -1,6 +1,7 @@
 import json
-import os
 from pathlib import Path
+
+import jsonfile
 
 SETTINGS_FILE = Path(__file__).parent / "data" / "settings.json"
 LANGUAGES = ["en", "de", "fr", "ja"]
@@ -33,9 +34,6 @@ def load_settings():
 
 
 def save_settings(all_settings):
-    """Write all settings to a temp file and swap it in atomically."""
+    """Write all settings to the settings file, replacing it atomically."""
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temp_file = SETTINGS_FILE.with_suffix(".tmp")
-    with open(temp_file, "w", encoding="utf-8") as file:
-        json.dump(all_settings, file, indent=2)
-    os.replace(temp_file, SETTINGS_FILE)
+    jsonfile.write_json_file(SETTINGS_FILE, all_settings, indent=2)

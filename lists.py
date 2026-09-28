@@ -73,12 +73,17 @@ def add_item(list_name, item_name, amount):
     if not is_valid_list_name(list_name):
         return
     items = storage.load_items(list_name)
+    merge_item(items, item_name, amount)
+    storage.save_items(list_name, items)
+
+
+def merge_item(items, item_name, amount):
+    """Add an amount of an item to the loaded items, summing up existing entries."""
     existing = find_item(items, item_name)
     if existing:
         existing["amount"] += amount
     else:
         items.append(new_item(items, item_name, amount))
-    storage.save_items(list_name, items)
 
 
 def new_item(items, item_name, amount):
@@ -129,18 +134,38 @@ def add_crafted_item(list_name, item_name, amount):
     item_name = normalize_spaces(item_name)
     if not is_valid_list_name(list_name):
         return
-    add_ingredients_of(list_name, item_name, amount, depth=0)
+    warm_material_data(item_name)
+    items = storage.load_items(list_name)
+    merge_ingredients_of(items, item_name, amount, depth=0)
+    storage.save_items(list_name, items)
 
 
-def add_ingredients_of(list_name, item_name, amount, depth):
-    """Resolve recipes recursively, adding items without a recipe to the list."""
+def warm_material_data(item_name):
+    """Batch fetch everything the item's whole material tree will need."""
+    game_id = xivapi.fetch_item_id(item_name)
+    if game_id:
+        warm_material_trees({game_id: item_name})
+
+
+def warm_material_trees(pairs):
+    """Batch fetch the recipes and item data behind the given craftables."""
+    materials = xivapi.warm_recipes(pairs) or {}
+    ids = sorted(materials)
+    xivapi.warm_items(ids)
+    xivapi.warm_icons(ids)
+    xivapi.warm_gathering(ids)
+    xivapi.warm_item_details(ids)
+
+
+def merge_ingredients_of(items, item_name, amount, depth):
+    """Resolve recipes recursively, merging items without a recipe into the list."""
     recipe = xivapi.fetch_recipe(item_name)
     if not recipe or depth >= MAX_RECIPE_DEPTH:
-        add_item(list_name, item_name, amount)
+        merge_item(items, item_name, amount)
         return
     crafts = math.ceil(amount / recipe["yields"])
     for ingredient in recipe["ingredients"]:
-        add_ingredients_of(list_name, ingredient["name"], ingredient["amount"] * crafts, depth + 1)
+        merge_ingredients_of(items, ingredient["name"], ingredient["amount"] * crafts, depth + 1)
 
 
 def add_materials_for(list_name, item_id):
@@ -305,9 +330,11 @@ def add_all_materials(list_name):
     if not is_valid_list_name(list_name):
         return
     items = storage.load_items(list_name)
-    for item in items:
-        if item.get("craftable", False) and not item.get("materials_added", False):
-            add_materials_for(list_name, item["id"])
+    pending = [item for item in items
+               if item.get("craftable", False) and not item.get("materials_added", False)]
+    warm_material_trees({item["game_id"]: item["name"] for item in pending if item.get("game_id")})
+    for item in pending:
+        add_materials_for(list_name, item["id"])
 
 
 def remove_materials(list_name):
@@ -416,6 +443,7 @@ def refresh_list_data(list_name):
     if not is_valid_list_name(list_name):
         return
     items = storage.load_items(list_name)
+    warm_list_data(items)
     for item in items:
         game_item = None
         if item.get("game_id"):
@@ -430,6 +458,17 @@ def refresh_list_data(list_name):
             item["job_icons"] = job_symbols(recipe, item["gathering"])
             item["marketable"] = item_marketable(item["game_id"])
     storage.save_items(list_name, items)
+
+
+def warm_list_data(items):
+    """Batch fetch all game data the list items are about to be refreshed with."""
+    known = [item for item in items if item.get("game_id")]
+    ids = [item["game_id"] for item in known]
+    xivapi.warm_items(ids)
+    xivapi.warm_icons(ids)
+    xivapi.warm_gathering(ids)
+    xivapi.warm_recipes({item["game_id"]: item["name"] for item in known})
+    xivapi.warm_item_details(ids)
 
 
 def apply_game_item(item, game_item):
@@ -452,6 +491,9 @@ def localize_list(list_name):
         return
     language = settings.get_language()
     items = storage.load_items(list_name)
+    outdated = [item["game_id"] for item in items
+                if item.get("game_id") and item.get("language") != language]
+    xivapi.warm_items(outdated)
     changed = False
     for item in items:
         if item.get("game_id") and item.get("language") != language:
@@ -743,15 +785,25 @@ MATERIAL_COST_WEIGHTS = {
 def get_craft_costs(level, job, orange_scrips, gemstones_unlocked=False, hide_loot=False, hide_locked=False):
     """Return scrip craftables ranked by material cost per scrip, cheapest first."""
     sources = material_source_sets()
+    candidates = [craftable for craftable in get_craftables(job=job, scrip_mode="scrip")
+                  if craft_level_matches(craftable["level"], level, orange_scrips)]
+    xivapi.warm_recipes(craftable_ingredients(candidates))
     entries = []
-    for craftable in get_craftables(job=job, scrip_mode="scrip"):
-        if not craft_level_matches(craftable["level"], level, orange_scrips):
-            continue
+    for craftable in candidates:
         entry = craft_cost_entry(craftable, sources, gemstones_unlocked)
         if entry and not entry_blocked(entry, gemstones_unlocked, hide_loot, hide_locked):
             entries.append(entry)
     ensure_currency_icons(entries)
     return sorted(entries, key=lambda entry: entry["score"])
+
+
+def craftable_ingredients(craftables):
+    """Collect the distinct ingredient id and name pairs of the craftables."""
+    pairs = {}
+    for craftable in craftables:
+        for ingredient in craftable.get("ingredients", []):
+            pairs[ingredient["game_id"]] = ingredient["name"]
+    return pairs
 
 
 def entry_blocked(entry, gemstones_unlocked, hide_loot, hide_locked):
@@ -780,6 +832,7 @@ def ensure_currency_icons(entries):
         for material in entry["materials"]:
             if material["currency"]:
                 currencies.add(material["currency"])
+    xivapi.warm_items(sorted(currencies))
     for currency_id in currencies:
         xivapi.fetch_item_by_id(currency_id)
 
@@ -1130,6 +1183,11 @@ def alarm_sounds():
     built_in = [name for name in BUILT_IN_ALARMS if name in found]
     custom = sorted(name for name in found if name not in BUILT_IN_ALARMS)
     return built_in + custom
+
+
+def fetches_running():
+    """Tell whether any big data lookup is currently fetching."""
+    return xivapi.fetches_running()
 
 
 def last_lookup_failed():

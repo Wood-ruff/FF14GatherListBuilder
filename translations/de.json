@@ -166,6 +166,7 @@
   "toast_background_working": "Daten werden im Hintergrund geladen…",
   "toast_background_done": "Hinzufügen im Hintergrund abgeschlossen",
   "toast_background_done_reload": "Hinzufügen abgeschlossen — Liste aktualisiert",
+  "toast_fetch_done_reload": "Spieldaten geladen — Ansicht aktualisiert",
   "timer_up": "verfügbar — noch {time}",
   "timer_in": "in {time}",
   "modal_aetheryte": "Nächster Ätheryt: ",

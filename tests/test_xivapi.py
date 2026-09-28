@@ -1,3 +1,6 @@
+import threading
+import time
+
 import pytest
 import requests
 
@@ -754,11 +757,11 @@ VENTURE_PARAMS = {"fields": {"ItemLevelDoW": [5, 11, 16, 21],
                              "PerceptionFSH": [0, 0, 0, 0]}}
 
 VENTURE_TASK_ROWS = [
-    {"RetainerLevel": 10, "VentureCost": 1, "Task@as(raw)": 1,
+    {"RetainerLevel": 10, "VentureCost": 1, "MaxTimemin": 60, "Task@as(raw)": 1,
      "ClassJobCategory@as(raw)": 17, "RetainerTaskParameter": VENTURE_PARAMS},
-    {"RetainerLevel": 5, "VentureCost": 2, "Task@as(raw)": 2,
+    {"RetainerLevel": 5, "VentureCost": 2, "MaxTimemin": 60, "Task@as(raw)": 2,
      "ClassJobCategory@as(raw)": 34, "RetainerTaskParameter": VENTURE_PARAMS},
-    {"RetainerLevel": 3, "VentureCost": 1, "Task@as(raw)": 99,
+    {"RetainerLevel": 3, "VentureCost": 1, "MaxTimemin": 60, "Task@as(raw)": 99,
      "ClassJobCategory@as(raw)": 34, "RetainerTaskParameter": VENTURE_PARAMS},
 ]
 
@@ -773,6 +776,7 @@ def ventures_api(url, params=None, **kwargs):
             {"row_id": 1, "fields": {"Item@as(raw)": 5111, "Quantity": [5, 7, 10, 12, 15]}},
             {"row_id": 2, "fields": {"Item@as(raw)": 4867, "Quantity": [1, 1, 2, 2, 3]}},
         ]})
+    assert params["query"] == xivapi.VENTURE_TASK_QUERY
     return FakeResponse({"results": [
         {"row_id": index, "fields": fields} for index, fields in enumerate(VENTURE_TASK_ROWS)
     ]})
@@ -781,9 +785,9 @@ def ventures_api(url, params=None, **kwargs):
 def test_fetch_ventures_builds_reward_entries(monkeypatch):
     monkeypatch.setattr("requests.get", ventures_api)
     assert xivapi.fetch_ventures() == [
-        {"item": 5111, "level": 10, "cost": 1, "job": "miner",
+        {"item": 5111, "level": 10, "cost": 1, "minutes": 60, "job": "miner",
          "quantities": [5, 7, 10, 12, 15], "breakpoints": [20, 29, 32, 35]},
-        {"item": 4867, "level": 5, "cost": 2, "job": "battle",
+        {"item": 4867, "level": 5, "cost": 2, "minutes": 60, "job": "battle",
          "quantities": [1, 1, 2, 2, 3], "breakpoints": [5, 11, 16, 21]},
     ]
 
@@ -798,6 +802,191 @@ def test_ventures_are_cached(monkeypatch):
     monkeypatch.setattr("requests.get", no_more_calls)
     xivapi.VENTURES.clear()
     assert xivapi.fetch_ventures()[0]["item"] == 5111
+
+
+def recipe_batch_api(url, params=None, **kwargs):
+    rows = []
+    if "ItemResult=45978" in params["query"]:
+        rows = [{
+            "ItemResult@as(raw)": 45978,
+            "AmountResult": 2,
+            "CraftType": {"fields": {"Name": "Clothcraft"}},
+            "Ingredient": [{"row_id": 5111, "fields": {"Name": "Iron Ore"}},
+                           {"row_id": 0, "fields": {"Name": ""}}],
+            "AmountIngredient": [4, 0],
+        }]
+    return FakeResponse({"results": [
+        {"row_id": index, "fields": fields} for index, fields in enumerate(rows)
+    ]})
+
+
+def test_warm_recipes_batches_whole_levels(monkeypatch):
+    calls = {"count": 0}
+
+    def counting(url, params=None, **kwargs):
+        calls["count"] += 1
+        return recipe_batch_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", counting)
+    seen = xivapi.warm_recipes({45978: "Diatryma Felt"})
+    assert seen == {45978: "Diatryma Felt", 5111: "Iron Ore"}
+    assert calls["count"] == 2
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_recipe("Diatryma Felt") == {
+        "yields": 2,
+        "ingredients": [{"name": "Iron Ore", "game_id": 5111, "amount": 4}],
+        "craft_types": ["Clothcraft"],
+    }
+    assert xivapi.fetch_recipe("Iron Ore") is None
+    assert xivapi.warm_recipes({45978: "Diatryma Felt"}) == seen
+
+
+def item_rows_api(url, params=None, **kwargs):
+    ids = [int(game_id) for game_id in params["rows"].split(",")]
+    return FakeResponse({"rows": [
+        {"row_id": game_id, "fields": {"Name": f"Item {game_id}", "PriceMid": game_id * 2,
+                                       "ItemSearchCategory@as(raw)": 40 if game_id != 16 else 0}}
+        for game_id in ids
+    ]})
+
+
+def test_warmed_items_still_download_their_icons(monkeypatch):
+    def rows_and_assets_api(url, params=None, **kwargs):
+        if url == xivapi.ASSET_URL:
+            return FakeResponse(content=b"png-bytes")
+        return FakeResponse({"rows": [{"row_id": 5111, "fields": {
+            "Name": "Iron Ore", "Icon": {"id": 21201, "path": "ui/icon/021000/021201.tex"},
+        }}]})
+
+    monkeypatch.setattr("requests.get", rows_and_assets_api)
+    xivapi.warm_items([5111])
+    assert not item_cache.has_icon(5111)
+    xivapi.fetch_item_by_id(5111)
+    assert item_cache.has_icon(5111)
+
+
+def test_warm_icons_downloads_missing_icons_in_parallel(monkeypatch):
+    def rows_and_assets_api(url, params=None, **kwargs):
+        if url == xivapi.ASSET_URL:
+            return FakeResponse(content=b"png-bytes")
+        return FakeResponse({"rows": [
+            {"row_id": game_id, "fields": {
+                "Name": f"Item {game_id}",
+                "Icon": {"id": game_id, "path": f"ui/icon/021000/{game_id}.tex"},
+            }} for game_id in (5111, 16)
+        ]})
+
+    monkeypatch.setattr("requests.get", rows_and_assets_api)
+    xivapi.warm_items([5111, 16])
+    xivapi.warm_icons([5111, 16])
+    assert item_cache.has_icon(5111)
+    assert item_cache.has_icon(16)
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.warm_icons([5111, 16])
+
+
+def test_warm_items_batches_and_feeds_the_id_cache(monkeypatch):
+    monkeypatch.setattr("requests.get", item_rows_api)
+    xivapi.warm_items([5111, 16])
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item_by_id(5111)["fields"]["Name"] == "Item 5111"
+    assert xivapi.fetch_item_by_id(16)["fields"]["Name"] == "Item 16"
+    xivapi.warm_items([5111, 16])
+
+
+def test_warm_items_feeds_the_name_cache_too(monkeypatch):
+    monkeypatch.setattr("requests.get", item_rows_api)
+    xivapi.warm_items([5111])
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item("Item 5111")["row_id"] == 5111
+
+
+def test_warm_item_details_batches_prices(monkeypatch):
+    monkeypatch.setattr("requests.get", item_rows_api)
+    xivapi.warm_item_details([5111, 16])
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item_details(5111) == {"price": 10222, "marketable": True}
+    assert xivapi.fetch_item_details(16) == {"price": 32, "marketable": False}
+
+
+def test_warm_gathering_marks_non_node_items(monkeypatch):
+    def membership_api(url, params=None, **kwargs):
+        assert "Item=5111 Item=44" in params["query"]
+        return FakeResponse({"results": [
+            {"row_id": 777, "fields": {"Item@as(raw)": 5111}},
+        ]})
+
+    node_info = {"timed": False, "times": [], "zone": "Thanalan", "aetheryte": "Camp",
+                 "job_ids": [1], "x": 10.0, "y": 20.0}
+    monkeypatch.setattr("requests.get", membership_api)
+    monkeypatch.setattr("xivapi.batch_lookup_nodes",
+                        lambda members: {str(game_id): dict(node_info, gi=members[game_id])
+                                         for game_id in members})
+
+    xivapi.warm_gathering([5111, 44])
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_gathering(5111)["gi"] == 777
+    assert xivapi.fetch_gathering(44)["zone"] is None
+    xivapi.warm_gathering([5111, 44])
+
+
+def test_batch_lookup_nodes_resolves_from_bulk_queries(monkeypatch):
+    def node_api(url, params=None, **kwargs):
+        if params and params.get("sheets") == "GatheringPointBase":
+            assert params["query"] == "Item[]=777 Item[]=778"
+            return FakeResponse({"results": [{"row_id": 500, "fields": {
+                "Item@as(raw)": [777, 0],
+                "Item": [{"row_id": 777, "fields": {"Item": {"row_id": 5111,
+                                                            "fields": {"Name": "Iron Ore"}}}}],
+                "GatheringType": {"row_id": 1, "fields": {"Name": "Mining"}},
+            }}]})
+        if params and params.get("sheets") == "GatheringPoint":
+            assert params["query"] == "GatheringPointBase=500"
+            return FakeResponse({"results": [{"row_id": 900, "fields": {
+                "GatheringPointBase@as(raw)": 500,
+                "TerritoryType": {"row_id": 128, "fields": {}},
+            }}]})
+        assert "GatheringPointTransient" in url and params["rows"] == "900"
+        return FakeResponse({"rows": [{"row_id": 900, "fields": {
+            "EphemeralStartTime": 65535, "EphemeralEndTime": 65535,
+            "GatheringRarePopTimeTable": {"fields": {"StartTime": [100], "Duration": [200]}},
+        }}]})
+
+    monkeypatch.setattr("requests.get", node_api)
+    monkeypatch.setattr("xivapi.node_from_parts", lambda base, point, times: {
+        "base_id": base["row_id"], "items": [5111], "zone": "Thanalan", "aetheryte": None,
+        "times": times, "job_id": 1, "x": 1.0, "y": 2.0,
+    })
+    infos = xivapi.batch_lookup_nodes({5111: 777, 60: 778})
+    assert infos["5111"]["zone"] == "Thanalan"
+    assert infos["5111"]["times"] == [{"start": 60, "duration": 120}]
+    assert infos["5111"]["job_ids"] == [1]
+    assert infos["60"]["zone"] is None
+    assert item_cache.get_fresh_result("500", "node")["base_id"] == 500
 
 
 def item_names_api(url, params=None, **kwargs):
@@ -900,6 +1089,73 @@ def test_distinct_offers_prefer_located_vendors():
     anonymous = {"shop": None, "currency": 1, "price": 108, "vendor": None}
     named_shop = {"shop": "Exchange", "currency": 2, "price": 5, "vendor": None}
     assert xivapi.distinct_offers([anonymous, located, named_shop]) == [located, named_shop]
+
+
+def test_failed_lookups_are_retried_later(monkeypatch):
+    def down(url, params=None, **kwargs):
+        raise requests.RequestException("down")
+
+    monkeypatch.setattr("requests.get", down)
+    assert xivapi.fetch_gathering(5111) is None
+    assert xivapi.fetch_item("Iron Ore") is None
+    monkeypatch.setattr("requests.get", gathering_api)
+    assert xivapi.fetch_gathering(5111) is not None
+    monkeypatch.setattr("requests.get", lambda *args, **kwargs: item_search_response(SEARCH_RESULTS))
+    assert xivapi.fetch_item("Iron Ore")["row_id"] == 5111
+
+
+def test_parallel_fetches_wait_for_the_running_lookup(monkeypatch):
+    lookups = {"count": 0}
+    entered = threading.Event()
+    release = threading.Event()
+    sources = {key: [] for key in xivapi.REQUIRED_SOURCE_KEYS}
+
+    def slow_lookup():
+        lookups["count"] += 1
+        entered.set()
+        release.wait(timeout=5)
+        return dict(sources, gatherable=[101])
+
+    monkeypatch.setattr("xivapi.lookup_material_sources", slow_lookup)
+    results = {}
+    first = threading.Thread(target=lambda: results.update(a=xivapi.fetch_material_sources()))
+    second = threading.Thread(target=lambda: results.update(b=xivapi.fetch_material_sources()))
+    first.start()
+    assert entered.wait(timeout=5)
+    second.start()
+    time.sleep(0.1)
+    release.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+    assert lookups["count"] == 1
+    assert results["a"]["gatherable"] == [101]
+    assert results["b"]["gatherable"] == [101]
+
+
+def test_parallel_recipe_fetches_share_one_lookup(monkeypatch):
+    lookups = {"count": 0}
+    entered = threading.Event()
+    release = threading.Event()
+
+    def slow_lookup(item_name):
+        lookups["count"] += 1
+        entered.set()
+        release.wait(timeout=5)
+        return {"yields": 1, "ingredients": [], "craft_types": ["Smithing"]}
+
+    monkeypatch.setattr("xivapi.lookup_recipe", slow_lookup)
+    results = {}
+    first = threading.Thread(target=lambda: results.update(a=xivapi.fetch_recipe("Iron Ingot")))
+    second = threading.Thread(target=lambda: results.update(b=xivapi.fetch_recipe("Iron Ingot")))
+    first.start()
+    assert entered.wait(timeout=5)
+    second.start()
+    time.sleep(0.1)
+    release.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+    assert lookups["count"] == 1
+    assert results["a"] == results["b"]
 
 
 def test_old_shape_cached_material_sources_are_refetched(monkeypatch):

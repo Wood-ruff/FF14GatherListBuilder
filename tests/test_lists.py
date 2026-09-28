@@ -30,6 +30,11 @@ FAKE_RECIPES = {
 def fake_xivapi(monkeypatch):
     monkeypatch.setattr("xivapi.fetch_item", lambda name: FAKE_ITEMS.get(name.lower()))
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: FAKE_RECIPES.get(name.lower()))
+    monkeypatch.setattr("xivapi.warm_recipes", lambda ingredients: None)
+    monkeypatch.setattr("xivapi.warm_items", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_icons", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_gathering", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_item_details", lambda game_ids: None)
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
     monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)

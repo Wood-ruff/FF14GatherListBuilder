@@ -261,6 +261,12 @@ def pending_adds():
     return jsonify(PENDING_ADDS["count"])
 
 
+@routes.get("/fetching")
+def fetching():
+    """Tell whether the server is currently fetching bigger game data."""
+    return jsonify(lists.fetches_running())
+
+
 @routes.get("/rotation")
 def rotation():
     """Return timed scrip collectables for the farm rotation planner as JSON."""

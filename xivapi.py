@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -34,6 +35,11 @@ LOG = logging.getLogger(__name__)
 def last_call_failed():
     """Tell whether the most recent api call failed to reach xivapi."""
     return API_STATUS["last_call_failed"]
+
+
+def fetches_running():
+    """Tell whether any big data lookup is currently running."""
+    return item_cache.fetches_running()
 
 
 def clear_cache():
@@ -77,27 +83,34 @@ def fetch_item_id(item_name):
 def fetch_item(item_name):
     """Return full item data from memory, the cache file, or the api."""
     key = item_name.lower()
-    if key in CACHE:
-        return CACHE[key]
-    item = item_cache.get_fresh_result(item_name, "item")
-    if not item:
-        item = find_exact_match(item_name)
+    with item_cache.fetch_lock(f"item:{key}"):
+        if key in CACHE:
+            if CACHE[key]:
+                ensure_icon(CACHE[key])
+            return CACHE[key]
+        item = item_cache.get_fresh_result(item_name, "item")
+        if not item:
+            item = find_exact_match(item_name)
+            if item:
+                item_cache.store_result(item_name, item, "item")
         if item:
-            item_cache.store_result(item_name, item, "item")
-    if item:
-        ensure_icon(item)
-    CACHE[key] = item
-    return item
+            ensure_icon(item)
+        if item or not last_call_failed():
+            CACHE[key] = item
+        return item
 
 
 def ensure_icon(item):
     """Download the item's icon once; the page only ever reads the cached file."""
     icon = item["fields"].get("Icon")
-    if not icon or item_cache.has_icon(item["row_id"]):
+    if not icon:
         return
-    png = fetch_asset(icon["path"])
-    if png:
-        item_cache.store_icon(item["row_id"], png)
+    with item_cache.fetch_lock(f"icon:{item['row_id']}"):
+        if item_cache.has_icon(item["row_id"]):
+            return
+        png = fetch_asset(icon["path"])
+        if png:
+            item_cache.store_icon(item["row_id"], png)
 
 
 def icon_folder():
@@ -108,18 +121,101 @@ def icon_folder():
 NO_RECIPE = {"no_recipe": True}
 
 
+RECIPE_BATCH_SIZE = 40
+RECIPE_BATCH_FIELDS = (
+    "ItemResult@as(raw),CraftType.Name,AmountResult,Ingredient[].Name,AmountIngredient"
+)
+
+
+def warm_recipes(ingredients):
+    """Batch cache missing recipes for id to name pairs and return every pair seen."""
+    with item_cache.fetch_lock("recipe_warmup"):
+        seen = {}
+        pending = dict(ingredients)
+        for _depth in range(10):
+            pending = {game_id: name for game_id, name in pending.items()
+                       if game_id not in seen}
+            if not pending:
+                break
+            seen.update(pending)
+            missing = {game_id: name for game_id, name in pending.items()
+                       if not recipe_cached(name)}
+            if missing:
+                grouped = item_cache.counted_fetch(lambda: batch_lookup_recipes(sorted(missing)))
+                if grouped is None:
+                    return seen
+                store_recipe_batch(missing, grouped)
+            pending = next_ingredients(pending)
+        return seen
+
+
+def next_ingredients(pairs):
+    """Collect the ingredient pairs of the cached recipes behind the given items."""
+    next_level = {}
+    for name in pairs.values():
+        recipe = fetch_recipe(name)
+        if recipe:
+            for ingredient in recipe["ingredients"]:
+                next_level[ingredient["game_id"]] = ingredient["name"]
+    return next_level
+
+
+def recipe_cached(item_name):
+    """Tell whether the item's recipe or no recipe marker is already known."""
+    if item_name.lower() in RECIPES:
+        return True
+    return cached_recipe(item_name) is not None
+
+
+def batch_lookup_recipes(game_ids):
+    """Fetch the recipes of many result items with chunked search queries."""
+    grouped = {}
+    for chunk in chunked(game_ids, RECIPE_BATCH_SIZE):
+        query = " ".join(f"ItemResult={game_id}" for game_id in chunk)
+        rows = search_sheet_rows("Recipe", query, RECIPE_BATCH_FIELDS)
+        if rows is None:
+            return None
+        for row in rows:
+            grouped.setdefault(row["fields"]["ItemResult@as(raw)"], []).append(row["fields"])
+    return grouped
+
+
+def store_recipe_batch(missing, grouped):
+    """Cache one level of batched recipes and their no recipe markers."""
+    stored = {}
+    for game_id, name in missing.items():
+        rows = grouped.get(game_id)
+        recipe = build_batched_recipe(rows) if rows else None
+        stored[name] = recipe if recipe else NO_RECIPE
+        RECIPES[name.lower()] = recipe
+    item_cache.store_results(stored, "recipe")
+
+
+def build_batched_recipe(rows):
+    """Build one cached recipe from its batched search rows."""
+    first = rows[0]
+    return {
+        "yields": first["AmountResult"],
+        "ingredients": recipe_ingredients(first),
+        "craft_types": distinct_craft_types([{"fields": fields} for fields in rows]),
+    }
+
+
 def fetch_recipe(item_name):
     """Return the recipe for a craftable item from memory, the cache file, or the api."""
     key = item_name.lower()
-    if key in RECIPES:
-        return RECIPES[key]
-    recipe = cached_recipe(item_name)
-    if recipe is None:
-        recipe = lookup_and_store_recipe(item_name)
-    if recipe == NO_RECIPE:
-        recipe = None
-    RECIPES[key] = recipe
-    return recipe
+    with item_cache.fetch_lock(f"recipe:{key}"):
+        if key in RECIPES:
+            return RECIPES[key]
+        recipe = cached_recipe(item_name)
+        if recipe is None:
+            recipe = lookup_and_store_recipe(item_name)
+        if recipe == NO_RECIPE:
+            RECIPES[key] = None
+            return None
+        if recipe is not None:
+            RECIPES[key] = recipe
+        return recipe
 
 
 def cached_recipe(item_name):
@@ -198,17 +294,21 @@ def recipe_ingredients(fields):
 def fetch_item_by_id(game_id):
     """Return item data for a game id in the current language, independent of names."""
     key = f"{settings.get_language()}:{game_id}"
-    if key in ID_CACHE:
-        return ID_CACHE[key]
-    item = item_cache.get_fresh_result(key, "item_id")
-    if item is None:
-        item = lookup_item_by_id(game_id)
-        if item is not None:
-            item_cache.store_result(key, item, "item_id")
-    if item:
-        ensure_icon(item)
-    ID_CACHE[key] = item
-    return item
+    with item_cache.fetch_lock(f"item_id:{key}"):
+        if key in ID_CACHE:
+            if ID_CACHE[key]:
+                ensure_icon(ID_CACHE[key])
+            return ID_CACHE[key]
+        item = item_cache.get_fresh_result(key, "item_id")
+        if item is None:
+            item = lookup_item_by_id(game_id)
+            if item is not None:
+                item_cache.store_result(key, item, "item_id")
+        if item:
+            ensure_icon(item)
+        if item or not last_call_failed():
+            ID_CACHE[key] = item
+        return item
 
 
 def lookup_item_by_id(game_id):
@@ -222,21 +322,23 @@ def lookup_item_by_id(game_id):
 
 def fetch_gathering(game_id):
     """Return gathering node info for an item from memory, the cache file, or the api."""
-    if game_id in GATHERING:
-        return GATHERING[game_id]
-    info = item_cache.get_fresh_result(str(game_id), "gathering")
-    if info is not None and (not isinstance(info.get("job_ids"), list) or "x" not in info):
-        info = None
-    if info is not None and game_id in CRYSTAL_GAME_IDS and len(info["job_ids"]) < 2:
-        info = None
-    if info is None and game_id not in CRYSTAL_GAME_IDS:
-        info = find_in_cached_nodes(game_id)
-    if info is None:
-        info = lookup_gathering(game_id)
+    with item_cache.fetch_lock(f"gathering:{game_id}"):
+        if game_id in GATHERING:
+            return GATHERING[game_id]
+        info = item_cache.get_fresh_result(str(game_id), "gathering")
+        if info is not None and (not isinstance(info.get("job_ids"), list) or "x" not in info):
+            info = None
+        if info is not None and game_id in CRYSTAL_GAME_IDS and len(info["job_ids"]) < 2:
+            info = None
+        if info is None and game_id not in CRYSTAL_GAME_IDS:
+            info = find_in_cached_nodes(game_id)
+        if info is None:
+            info = lookup_gathering(game_id)
+            if info is not None:
+                item_cache.store_result(str(game_id), info, "gathering")
         if info is not None:
-            item_cache.store_result(str(game_id), info, "gathering")
-    GATHERING[game_id] = info
-    return info
+            GATHERING[game_id] = info
+        return info
 
 
 def find_in_cached_nodes(game_id):
@@ -270,8 +372,13 @@ def lookup_gathering(game_id):
         return None
     if not found:
         return dict(NO_NODE)
+    return lookup_gathering_node(found[0]["row_id"])
+
+
+def lookup_gathering_node(gathering_item_id):
+    """Fetch the node data behind one gathering item row."""
     bases = search_rows(
-        "GatheringPointBase", f"+Item[]={found[0]['row_id']}",
+        "GatheringPointBase", f"+Item[]={gathering_item_id}",
         "Item[].Item.Name,GatheringType.Name", limit=100,
     )
     if bases is None:
@@ -289,6 +396,239 @@ def lookup_gathering(game_id):
     return info
 
 
+def warm_gathering(game_ids):
+    """Batch resolve which items come from nodes and cache all their gathering data."""
+    with item_cache.fetch_lock("gathering_warmup"):
+        missing = [game_id for game_id in dict.fromkeys(game_ids)
+                   if game_id not in GATHERING and game_id not in CRYSTAL_GAME_IDS
+                   and item_cache.get_fresh_result(str(game_id), "gathering") is None]
+        if not missing:
+            return
+        membership = item_cache.counted_fetch(lambda: batch_gathering_rows(missing))
+        if membership is None:
+            return
+        item_cache.counted_fetch(lambda: store_gathering_batch(missing, membership))
+
+
+def batch_gathering_rows(game_ids):
+    """Map item ids to their gathering item row ids with chunked search queries."""
+    mapping = {}
+    for chunk in chunked(game_ids, RECIPE_BATCH_SIZE):
+        query = " ".join(f"Item={game_id}" for game_id in chunk)
+        rows = search_sheet_rows("GatheringItem", query, RAW_ITEM_FIELD)
+        if rows is None:
+            return None
+        for row in rows:
+            mapping.setdefault(row["fields"][RAW_ITEM_FIELD], row["row_id"])
+    return mapping
+
+
+def store_gathering_batch(game_ids, membership):
+    """Cache the gathering info of node items and no node markers for the rest."""
+    infos = {str(game_id): dict(NO_NODE) for game_id in game_ids if game_id not in membership}
+    members = {game_id: membership[game_id] for game_id in game_ids if game_id in membership}
+    if members:
+        infos.update(batch_lookup_nodes(members))
+    for key, info in infos.items():
+        GATHERING[int(key)] = info
+    item_cache.store_results(infos, "gathering")
+
+
+def batch_lookup_nodes(members):
+    """Resolve many items' nodes with batched base, point and time lookups."""
+    grouped = batch_gathering_bases(sorted(set(members.values())))
+    if grouped is None:
+        return {}
+    picks = {game_id: pick_node_base(grouped.get(gi_id)) for game_id, gi_id in members.items()}
+    base_ids = sorted({base["row_id"] for base in picks.values() if base})
+    points = batch_gathering_points(base_ids)
+    if points is None:
+        return {}
+    times = batch_node_times(sorted({point["row_id"] for point in points.values()}))
+    return assemble_member_nodes(members, grouped, picks, points, times)
+
+
+def pick_node_base(rows):
+    """Return the base with the lowest row id, or None without any base."""
+    if not rows:
+        return None
+    return min(rows, key=lambda row: row["row_id"])
+
+
+NODE_BASE_FIELDS = "Item@as(raw),Item[].Item.Name,GatheringType.Name"
+
+
+def batch_gathering_bases(gathering_item_ids):
+    """Group all node bases by the gathering item ids they contain."""
+    wanted = set(gathering_item_ids)
+    grouped = {}
+    seen = set()
+    for chunk in chunked(gathering_item_ids, RECIPE_BATCH_SIZE):
+        query = " ".join(f"Item[]={gi_id}" for gi_id in chunk)
+        rows = search_sheet_rows("GatheringPointBase", query, NODE_BASE_FIELDS)
+        if rows is None:
+            return None
+        for row in rows:
+            for gi_id in row["fields"]["Item@as(raw)"]:
+                if gi_id in wanted and (gi_id, row["row_id"]) not in seen:
+                    seen.add((gi_id, row["row_id"]))
+                    grouped.setdefault(gi_id, []).append(row)
+    return grouped
+
+
+def batch_gathering_points(base_ids):
+    """Map base ids to their first gathering point with zone data."""
+    points = {}
+    for chunk in chunked(base_ids, RECIPE_BATCH_SIZE):
+        query = " ".join(f"GatheringPointBase={base_id}" for base_id in chunk)
+        rows = search_sheet_rows(
+            "GatheringPoint", query, f"GatheringPointBase@as(raw),{POINT_FIELDS}"
+        )
+        if rows is None:
+            return None
+        for row in rows:
+            base_id = row["fields"]["GatheringPointBase@as(raw)"]
+            known = points.get(base_id)
+            if known is None or row["row_id"] < known["row_id"]:
+                points[base_id] = row
+    return points
+
+
+def batch_node_times(point_ids):
+    """Map point ids to their spawn windows, fetched in bulk sheet calls."""
+    times = {}
+    for chunk in chunked(point_ids, 100):
+        data = get_json(f"{SHEET_URL}/GatheringPointTransient", {
+            "rows": ",".join(str(point_id) for point_id in chunk),
+            "fields": NODE_TIME_FIELDS,
+            "limit": len(chunk),
+        })
+        if data is None:
+            return times
+        for row in data["rows"]:
+            times[row["row_id"]] = rare_pop_times(row["fields"]) + ephemeral_times(row["fields"])
+    return times
+
+
+def assemble_member_nodes(members, grouped, picks, points, times):
+    """Build and cache every member's node info from the batched pieces."""
+    infos = {}
+    pending = []
+    for game_id, gi_id in members.items():
+        base = picks[game_id]
+        point = points.get(base["row_id"]) if base else None
+        if point is None:
+            infos[str(game_id)] = dict(NO_NODE)
+        else:
+            pending.append((game_id, gi_id, base, point))
+    with ThreadPoolExecutor(max_workers=ICON_WORKERS) as pool:
+        finished = list(pool.map(lambda entry: finish_member_node(entry, times), pending))
+    nodes = {}
+    for game_id, gi_id, node in finished:
+        if node is None:
+            continue
+        nodes[str(node["base_id"])] = node
+        info = item_info_from_node(node)
+        info["job_ids"] = distinct_gathering_jobs(grouped[gi_id])
+        infos[str(game_id)] = info
+    item_cache.store_results(nodes, "node")
+    return infos
+
+
+def finish_member_node(entry, times):
+    """Complete one member's node from the batched parts, filling missing times."""
+    game_id, gi_id, base, point = entry
+    node_times = times.get(point["row_id"])
+    if node_times is None:
+        node_times = fetch_node_times(point["row_id"])
+    if node_times is None:
+        return game_id, gi_id, None
+    return game_id, gi_id, node_from_parts(base, point, node_times)
+
+
+def warm_items(game_ids):
+    """Batch fetch and cache missing item rows for the given game ids."""
+    language = settings.get_language()
+    with item_cache.fetch_lock("item_warmup"):
+        missing = [game_id for game_id in dict.fromkeys(game_ids)
+                   if f"{language}:{game_id}" not in ID_CACHE
+                   and item_cache.get_fresh_result(f"{language}:{game_id}", "item_id") is None]
+        if not missing:
+            return
+        rows = item_cache.counted_fetch(lambda: batch_item_rows(missing, "Name,Icon", language))
+        if rows is None:
+            return
+        stored = {}
+        named = {}
+        for row in rows:
+            item = {"row_id": row["row_id"], "fields": row["fields"]}
+            stored[f"{language}:{row['row_id']}"] = item
+            ID_CACHE[f"{language}:{row['row_id']}"] = item
+            name = row["fields"].get("Name")
+            if name:
+                named[name] = item
+                CACHE[name.lower()] = item
+        item_cache.store_results(stored, "item_id")
+        item_cache.store_results(named, "item")
+
+
+ICON_WORKERS = 4
+
+
+def warm_icons(game_ids):
+    """Download the missing icons of the given items with a few parallel workers."""
+    language = settings.get_language()
+    items = []
+    for game_id in dict.fromkeys(game_ids):
+        item = ID_CACHE.get(f"{language}:{game_id}") or item_cache.get_fresh_result(
+            f"{language}:{game_id}", "item_id"
+        )
+        if item and item["fields"].get("Icon") and not item_cache.has_icon(item["row_id"]):
+            items.append(item)
+    if not items:
+        return
+    with ThreadPoolExecutor(max_workers=ICON_WORKERS) as pool:
+        list(pool.map(ensure_icon, items))
+
+
+def warm_item_details(game_ids):
+    """Batch fetch and cache missing price and market details for the game ids."""
+    with item_cache.fetch_lock("item_details_warmup"):
+        missing = [game_id for game_id in dict.fromkeys(game_ids)
+                   if item_cache.get_fresh_result(str(game_id), "item_details") is None]
+        if not missing:
+            return
+        fields = "PriceMid,ItemSearchCategory@as(raw)"
+        rows = item_cache.counted_fetch(
+            lambda: batch_item_rows(missing, fields, settings.get_language())
+        )
+        if rows is None:
+            return
+        stored = {}
+        for row in rows:
+            stored[str(row["row_id"])] = {
+                "price": row["fields"]["PriceMid"],
+                "marketable": row["fields"]["ItemSearchCategory@as(raw)"] > 0,
+            }
+        item_cache.store_results(stored, "item_details")
+
+
+def batch_item_rows(game_ids, fields, language):
+    """Fetch many item sheet rows in chunked calls and return them all."""
+    rows = []
+    for chunk in chunked(game_ids, 100):
+        data = get_json(f"{SHEET_URL}/Item", {
+            "rows": ",".join(str(game_id) for game_id in chunk),
+            "fields": fields,
+            "language": language,
+            "limit": len(chunk),
+        })
+        if data is None:
+            return None
+        rows.extend(data["rows"])
+    return rows
+
+
 def distinct_gathering_jobs(bases):
     """Return the distinct gathering type ids of the given node bases."""
     job_ids = []
@@ -299,14 +639,15 @@ def distinct_gathering_jobs(bases):
     return job_ids
 
 
+POINT_FIELDS = (
+    "TerritoryType.PlaceName.Name,TerritoryType.Aetheryte.PlaceName.Name,"
+    "TerritoryType.Map.SizeFactor,TerritoryType.Map.OffsetX,TerritoryType.Map.OffsetY"
+)
+
+
 def lookup_node(base):
     """Fetch one gathering node with its items, zone, aetheryte, position and times."""
-    points = search_rows(
-        "GatheringPoint",
-        f"GatheringPointBase={base['row_id']}",
-        "TerritoryType.PlaceName.Name,TerritoryType.Aetheryte.PlaceName.Name,"
-        "TerritoryType.Map.SizeFactor,TerritoryType.Map.OffsetX,TerritoryType.Map.OffsetY",
-    )
+    points = search_rows("GatheringPoint", f"GatheringPointBase={base['row_id']}", POINT_FIELDS)
     if points is None:
         return None
     if not points:
@@ -314,8 +655,13 @@ def lookup_node(base):
     times = fetch_node_times(points[0]["row_id"])
     if times is None:
         return None
-    territory = points[0]["fields"]["TerritoryType"]["fields"]
-    territory_id = points[0]["fields"]["TerritoryType"]["row_id"]
+    return node_from_parts(base, points[0], times)
+
+
+def node_from_parts(base, point, times):
+    """Build one node from its base and point rows, resolving position and aetheryte."""
+    territory = point["fields"]["TerritoryType"]["fields"]
+    territory_id = point["fields"]["TerritoryType"]["row_id"]
     map_fields = territory.get("Map", {}).get("fields", {})
     x, y = node_map_position(base["row_id"], map_fields)
     aetheryte = closest_aetheryte(territory_id, map_fields.get("SizeFactor", 100), x, y)
@@ -407,14 +753,16 @@ def territory_aetheryte_name(territory):
     return None
 
 
+NODE_TIME_FIELDS = (
+    "EphemeralStartTime,EphemeralEndTime,"
+    "GatheringRarePopTimeTable.StartTime,GatheringRarePopTimeTable.Duration"
+)
+
+
 def fetch_node_times(point_id):
     """Fetch the spawn windows of a gathering point as eorzea minute pairs."""
     url = f"{SHEET_URL}/GatheringPointTransient/{point_id}"
-    fields = (
-        "EphemeralStartTime,EphemeralEndTime,"
-        "GatheringRarePopTimeTable.StartTime,GatheringRarePopTimeTable.Duration"
-    )
-    data = get_json(url, {"fields": fields})
+    data = get_json(url, {"fields": NODE_TIME_FIELDS})
     if data is None:
         return None
     return rare_pop_times(data["fields"]) + ephemeral_times(data["fields"])
@@ -452,15 +800,17 @@ def game_time_to_minutes(value):
 def fetch_collectables():
     """Return all gathering collectables from memory, the cache file, or the api."""
     language = settings.get_language()
-    if language in COLLECTABLES:
-        return COLLECTABLES[language]
-    data = item_cache.get_fresh_result(language, "collectables")
-    if data is None:
-        data = lookup_collectables()
+    with item_cache.fetch_lock(f"collectables:{language}"):
+        if language in COLLECTABLES:
+            return COLLECTABLES[language]
+        data = item_cache.get_fresh_result(language, "collectables")
+        if data is None:
+            data = item_cache.counted_fetch(lookup_collectables)
+            if data is not None:
+                item_cache.store_result(language, data, "collectables")
         if data is not None:
-            item_cache.store_result(language, data, "collectables")
-    COLLECTABLES[language] = data
-    return data
+            COLLECTABLES[language] = data
+        return data
 
 
 def lookup_collectables():
@@ -715,19 +1065,21 @@ def build_collectable(item, scrips, nodes):
 def download_craft_icon(icon_id):
     """Download one crafting job icon once; later reads come from the cache."""
     key = f"crafticon_{icon_id}"
-    if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
-        DOWNLOADED_ICONS.add(key)
-        return
-    png = fetch_asset(f"ui/icon/062000/{icon_id:06d}.tex")
-    if png:
-        item_cache.store_icon(key, png)
-        DOWNLOADED_ICONS.add(key)
+    with item_cache.fetch_lock(f"icon:{key}"):
+        if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
+            DOWNLOADED_ICONS.add(key)
+            return
+        png = fetch_asset(f"ui/icon/062000/{icon_id:06d}.tex")
+        if png:
+            item_cache.store_icon(key, png)
+            DOWNLOADED_ICONS.add(key)
 
 
 def ensure_job_type_icon(type_id):
     """Download one gathering job icon if it is not cached yet."""
-    if not item_cache.has_icon(f"jobtype_{type_id}"):
-        download_job_icons({type_id})
+    with item_cache.fetch_lock(f"icon:jobtype_{type_id}"):
+        if not item_cache.has_icon(f"jobtype_{type_id}"):
+            download_job_icons({type_id})
 
 
 def download_job_icons(job_ids):
@@ -758,17 +1110,19 @@ def chunked(values, size):
 def fetch_craftables():
     """Return all craftable collectables from memory, the cache file, or the api."""
     language = settings.get_language()
-    if language in CRAFTABLES:
-        return CRAFTABLES[language]
-    data = item_cache.get_fresh_result(language, "craftables")
-    if data and "ingredients" not in data[0]:
-        data = None
-    if data is None:
-        data = lookup_craftables()
+    with item_cache.fetch_lock(f"craftables:{language}"):
+        if language in CRAFTABLES:
+            return CRAFTABLES[language]
+        data = item_cache.get_fresh_result(language, "craftables")
+        if data and "ingredients" not in data[0]:
+            data = None
+        if data is None:
+            data = item_cache.counted_fetch(lookup_craftables)
+            if data is not None:
+                item_cache.store_result(language, data, "craftables")
         if data is not None:
-            item_cache.store_result(language, data, "craftables")
-    CRAFTABLES[language] = data
-    return data
+            CRAFTABLES[language] = data
+        return data
 
 
 def lookup_craftables():
@@ -851,18 +1205,19 @@ REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency", "prices", "red
 
 def fetch_material_sources():
     """Return item ids by acquisition source from memory, the cache file, or the api."""
-    if MATERIAL_SOURCES:
-        return dict(MATERIAL_SOURCES)
-    data = item_cache.get_fresh_result("all", "material_sources")
-    if data and any(key not in data for key in REQUIRED_SOURCE_KEYS):
-        data = None
-    if data is None:
-        data = lookup_material_sources()
+    with item_cache.fetch_lock("material_sources"):
+        if MATERIAL_SOURCES:
+            return dict(MATERIAL_SOURCES)
+        data = item_cache.get_fresh_result("all", "material_sources")
+        if data and any(key not in data for key in REQUIRED_SOURCE_KEYS):
+            data = None
+        if data is None:
+            data = item_cache.counted_fetch(lookup_material_sources)
+            if data is not None:
+                item_cache.store_result("all", data, "material_sources")
         if data is not None:
-            item_cache.store_result("all", data, "material_sources")
-    if data is not None:
-        MATERIAL_SOURCES.update(data)
-    return data
+            MATERIAL_SOURCES.update(data)
+        return data
 
 
 def lookup_material_sources():
@@ -911,16 +1266,17 @@ CURRENCY_CATEGORY_QUERY = "ItemUICategory=100"
 
 def fetch_currency_shop():
     """Return what every currency buys from memory, the cache file, or the api."""
-    if CURRENCY_SHOP:
-        return dict(CURRENCY_SHOP)
-    data = item_cache.get_fresh_result("all", "currency_shop")
-    if data is None:
-        data = lookup_currency_shop()
+    with item_cache.fetch_lock("currency_shop"):
+        if CURRENCY_SHOP:
+            return dict(CURRENCY_SHOP)
+        data = item_cache.get_fresh_result("all", "currency_shop")
+        if data is None:
+            data = item_cache.counted_fetch(lookup_currency_shop)
+            if data is not None:
+                item_cache.store_result("all", data, "currency_shop")
         if data is not None:
-            item_cache.store_result("all", data, "currency_shop")
-    if data is not None:
-        CURRENCY_SHOP.update(data)
-    return data
+            CURRENCY_SHOP.update(data)
+        return data
 
 
 def lookup_currency_shop():
@@ -966,40 +1322,44 @@ def keep_cheapest_offer(offers, currency, item_id, cost, amount, gated):
 
 
 VENTURE_TASK_FIELDS = (
-    "RetainerLevel,VentureCost,Task@as(raw),ClassJobCategory@as(raw),"
+    "RetainerLevel,VentureCost,MaxTimemin,Task@as(raw),ClassJobCategory@as(raw),"
     "RetainerTaskParameter.ItemLevelDoW,RetainerTaskParameter.PerceptionDoL,"
     "RetainerTaskParameter.PerceptionFSH"
 )
+VENTURE_TASK_QUERY = "+IsRandom=false +Task>0"
 
 
 def fetch_ventures():
     """Return all normal retainer ventures from memory, the cache file, or the api."""
-    if VENTURES:
-        return list(VENTURES)
-    data = item_cache.get_fresh_result("all", "ventures")
-    if data is None:
-        data = lookup_ventures()
+    with item_cache.fetch_lock("ventures"):
+        if VENTURES:
+            return list(VENTURES)
+        data = item_cache.get_fresh_result("all", "ventures")
+        if data and "minutes" not in data[0]:
+            data = None
+        if data is None:
+            data = item_cache.counted_fetch(lookup_ventures)
+            if data is not None:
+                item_cache.store_result("all", data, "ventures")
         if data is not None:
-            item_cache.store_result("all", data, "ventures")
-    if data is not None:
-        VENTURES.extend(data)
-    return data
+            VENTURES.extend(data)
+        return data
 
 
 def lookup_ventures():
     """Collect every normal retainer venture with its reward and quantity tiers."""
-    tasks = search_sheet_rows("RetainerTask", "IsRandom=false Task>0", VENTURE_TASK_FIELDS)
+    tasks = search_sheet_rows("RetainerTask", VENTURE_TASK_QUERY, VENTURE_TASK_FIELDS)
     if tasks is None:
         return None
     rewards = sheet_rows("RetainerTaskNormal", "Item@as(raw),Quantity")
     if rewards is None:
         return None
-    jobs = venture_job_keys({fields["ClassJobCategory@as(raw)"] for fields in tasks})
+    jobs = venture_job_keys({row["fields"]["ClassJobCategory@as(raw)"] for row in tasks})
     if jobs is None:
         return None
     ventures = []
-    for fields in tasks:
-        venture = build_venture(fields, rewards, jobs)
+    for row in tasks:
+        venture = build_venture(row["fields"], rewards, jobs)
         if venture is not None:
             ventures.append(venture)
     return ventures
@@ -1015,6 +1375,7 @@ def build_venture(fields, rewards, jobs):
         "item": reward["Item@as(raw)"],
         "level": fields["RetainerLevel"],
         "cost": max(fields["VentureCost"], 1),
+        "minutes": fields["MaxTimemin"],
         "job": job,
         "quantities": reward["Quantity"],
         "breakpoints": venture_breakpoints(job, fields["RetainerTaskParameter"]["fields"]),
@@ -1053,14 +1414,15 @@ def job_key_from_flags(flags):
 
 
 def search_sheet_rows(sheet, query, fields):
-    """Search one sheet and return all matching rows' fields, paging the results."""
-    params = {"sheets": sheet, "query": query, "limit": 500, "fields": fields}
+    """Search one sheet and return all matching rows, paging the results."""
+    params = {"sheets": sheet, "query": query, "limit": 500, "fields": fields,
+              "language": settings.get_language()}
     rows = []
     for _page in range(40):
         data = get_json(SEARCH_URL, params)
         if data is None:
             return None
-        rows.extend(row["fields"] for row in data["results"])
+        rows.extend(data["results"])
         if "next" not in data:
             break
         params = {"cursor": data["next"], "limit": 500, "fields": fields}
@@ -1070,17 +1432,18 @@ def search_sheet_rows(sheet, query, fields):
 def fetch_item_names(game_ids):
     """Return display names by item id, fetching all missing ones in one call."""
     language = settings.get_language()
-    names = {}
-    missing = []
-    for game_id in game_ids:
-        cached = item_cache.get_fresh_result(f"{language}:{game_id}", "item_name")
-        if cached is None:
-            missing.append(game_id)
-        else:
-            names[game_id] = cached
-    if missing:
-        names.update(lookup_item_names(missing, language))
-    return names
+    with item_cache.fetch_lock(f"item_names:{language}"):
+        names = {}
+        missing = []
+        for game_id in game_ids:
+            cached = item_cache.get_fresh_result(f"{language}:{game_id}", "item_name")
+            if cached is None:
+                missing.append(game_id)
+            else:
+                names[game_id] = cached
+        if missing:
+            names.update(lookup_item_names(missing, language))
+        return names
 
 
 def lookup_item_names(game_ids, language):
@@ -1186,42 +1549,46 @@ MARKET_ICON_ID = 60570
 def ensure_market_icon():
     """Download the market board symbol once and return its icon file name."""
     key = f"symbol_{MARKET_ICON_ID}"
-    if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
-        DOWNLOADED_ICONS.add(key)
+    with item_cache.fetch_lock(f"icon:{key}"):
+        if key in DOWNLOADED_ICONS or item_cache.has_icon(key):
+            DOWNLOADED_ICONS.add(key)
+            return f"{key}.png"
+        png = fetch_asset(f"ui/icon/060000/{MARKET_ICON_ID:06d}.tex")
+        if png:
+            item_cache.store_icon(key, png)
+            DOWNLOADED_ICONS.add(key)
         return f"{key}.png"
-    png = fetch_asset(f"ui/icon/060000/{MARKET_ICON_ID:06d}.tex")
-    if png:
-        item_cache.store_icon(key, png)
-        DOWNLOADED_ICONS.add(key)
-    return f"{key}.png"
 
 
 def fetch_item_details(game_id):
     """Return an item's gil price and market availability, cached."""
-    cached = item_cache.get_fresh_result(str(game_id), "item_details")
-    if cached is not None:
-        return cached
-    data = get_json(f"{SHEET_URL}/Item/{game_id}", {"fields": "PriceMid,ItemSearchCategory@as(raw)"})
-    if data is None:
-        return None
-    details = {
-        "price": data["fields"]["PriceMid"],
-        "marketable": data["fields"]["ItemSearchCategory@as(raw)"] > 0,
-    }
-    item_cache.store_result(str(game_id), details, "item_details")
-    return details
+    with item_cache.fetch_lock(f"item_details:{game_id}"):
+        cached = item_cache.get_fresh_result(str(game_id), "item_details")
+        if cached is not None:
+            return cached
+        data = get_json(f"{SHEET_URL}/Item/{game_id}",
+                        {"fields": "PriceMid,ItemSearchCategory@as(raw)"})
+        if data is None:
+            return None
+        details = {
+            "price": data["fields"]["PriceMid"],
+            "marketable": data["fields"]["ItemSearchCategory@as(raw)"] > 0,
+        }
+        item_cache.store_result(str(game_id), details, "item_details")
+        return details
 
 
 def fetch_item_offers(game_id):
     """Return the item's shop offers with prices and vendors, cached per language."""
     key = f"{settings.get_language()}:{game_id}"
-    cached = item_cache.get_fresh_result(key, "offers")
-    if cached is not None:
-        return cached
-    offers = lookup_item_offers(game_id)
-    if offers is not None:
-        item_cache.store_result(key, offers, "offers")
-    return offers
+    with item_cache.fetch_lock(f"offers:{key}"):
+        cached = item_cache.get_fresh_result(key, "offers")
+        if cached is not None:
+            return cached
+        offers = lookup_item_offers(game_id)
+        if offers is not None:
+            item_cache.store_result(key, offers, "offers")
+        return offers
 
 
 MAX_GIL_SHOPS = 3
@@ -1487,18 +1854,19 @@ def special_shop_items():
 
 def tomestone_currency_ids():
     """Map tomestone cost indexes to their currency item ids, cached."""
-    if TOMESTONES:
-        return dict(TOMESTONES)
-    data = item_cache.get_fresh_result("all", "tomestones")
-    if data is None:
-        data = lookup_tomestone_ids()
-        if data is not None:
-            item_cache.store_result("all", data, "tomestones")
-    if data is None:
-        return None
-    mapping = {int(index): item_id for index, item_id in data.items()}
-    TOMESTONES.update(mapping)
-    return mapping
+    with item_cache.fetch_lock("tomestones"):
+        if TOMESTONES:
+            return dict(TOMESTONES)
+        data = item_cache.get_fresh_result("all", "tomestones")
+        if data is None:
+            data = lookup_tomestone_ids()
+            if data is not None:
+                item_cache.store_result("all", data, "tomestones")
+        if data is None:
+            return None
+        mapping = {int(index): item_id for index, item_id in data.items()}
+        TOMESTONES.update(mapping)
+        return mapping
 
 
 def lookup_tomestone_ids():

@@ -166,6 +166,7 @@
   "toast_background_working": "Fetching data in the background…",
   "toast_background_done": "Background adding finished",
   "toast_background_done_reload": "Background adding finished — list updated",
+  "toast_fetch_done_reload": "Game data fetched — view updated",
   "timer_up": "up now — {time} left",
   "timer_in": "in {time}",
   "modal_aetheryte": "Closest aetheryte: ",

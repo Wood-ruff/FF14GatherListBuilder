@@ -19,46 +19,49 @@ LOG = logging.getLogger(__name__)
 
 def fetch_worlds():
     """Return all game worlds as id and name pairs, cached."""
-    cached = item_cache.get_fresh_result("all", "universalis_worlds")
-    if cached is not None:
-        return cached
-    worlds = get_json(WORLDS_URL, None)
-    if worlds is None:
-        return None
-    item_cache.store_result("all", worlds, "universalis_worlds")
-    return worlds
+    with item_cache.fetch_lock("universalis_worlds"):
+        cached = item_cache.get_fresh_result("all", "universalis_worlds")
+        if cached is not None:
+            return cached
+        worlds = item_cache.counted_fetch(lambda: get_json(WORLDS_URL, None))
+        if worlds is None:
+            return None
+        item_cache.store_result("all", worlds, "universalis_worlds")
+        return worlds
 
 
 def fetch_marketable_ids():
     """Return the ids of all items tradable on the market board, cached."""
-    cached = item_cache.get_fresh_result("all", "universalis_marketable")
-    if cached is None:
-        cached = get_json(MARKETABLE_URL, None)
+    with item_cache.fetch_lock("universalis_marketable"):
+        cached = item_cache.get_fresh_result("all", "universalis_marketable")
         if cached is None:
-            return None
-        item_cache.store_result("all", cached, "universalis_marketable")
-    return set(cached)
+            cached = item_cache.counted_fetch(lambda: get_json(MARKETABLE_URL, None))
+            if cached is None:
+                return None
+            item_cache.store_result("all", cached, "universalis_marketable")
+        return set(cached)
 
 
 def fetch_market_stats(world_id, item_ids):
     """Return market prices and week volume per item id, cached for a few hours."""
-    cached = item_cache.get_fresh_results(
-        [stats_key(world_id, item_id) for item_id in item_ids], "market_stats", MARKET_TTL_HOURS
-    )
-    stats = {}
-    missing = []
-    for item_id in item_ids:
-        known = cached.get(stats_key(world_id, item_id))
-        if known is None or any(key not in known for key in STAT_KEYS):
-            missing.append(item_id)
-        else:
-            stats[item_id] = known
-    for chunk in chunked(missing, CHUNK_SIZE):
-        fetched = lookup_market_stats_with_retry(world_id, chunk)
-        if fetched is None:
-            return None
-        stats.update(fetched)
-    return stats
+    with item_cache.fetch_lock(f"market_stats:{world_id}"):
+        cached = item_cache.get_fresh_results(
+            [stats_key(world_id, item_id) for item_id in item_ids], "market_stats", MARKET_TTL_HOURS
+        )
+        stats = {}
+        missing = []
+        for item_id in item_ids:
+            known = cached.get(stats_key(world_id, item_id))
+            if known is None or any(key not in known for key in STAT_KEYS):
+                missing.append(item_id)
+            else:
+                stats[item_id] = known
+        for chunk in chunked(missing, CHUNK_SIZE):
+            fetched = lookup_market_stats_with_retry(world_id, chunk)
+            if fetched is None:
+                return None
+            stats.update(fetched)
+        return stats
 
 
 def lookup_market_stats_with_retry(world_id, item_ids):

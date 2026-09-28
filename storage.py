@@ -1,7 +1,8 @@
 import json
 import logging
-import os
 from pathlib import Path
+
+import jsonfile
 
 DATA_DIR = Path(__file__).parent / "data" / "lists"
 
@@ -35,10 +36,6 @@ def delete_list(list_name):
 
 
 def save_items(list_name, items):
-    """Write the items of the named list to a temp file and swap it in atomically."""
+    """Write the items of the named list to its JSON file, replacing it atomically."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path = DATA_DIR / f"{list_name}.json"
-    temp_path = path.with_suffix(".tmp")
-    with open(temp_path, "w", encoding="utf-8") as file:
-        json.dump(items, file, indent=2)
-    os.replace(temp_path, path)
+    jsonfile.write_json_file(DATA_DIR / f"{list_name}.json", items, indent=2)

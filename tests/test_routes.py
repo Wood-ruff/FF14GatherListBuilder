@@ -8,6 +8,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     monkeypatch.setattr("xivapi.fetch_item", lambda name: None)
     monkeypatch.setattr("xivapi.fetch_recipe", lambda name: None)
+    monkeypatch.setattr("xivapi.warm_recipes", lambda ingredients: None)
+    monkeypatch.setattr("xivapi.warm_items", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_icons", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_gathering", lambda game_ids: None)
+    monkeypatch.setattr("xivapi.warm_item_details", lambda game_ids: None)
     monkeypatch.setattr("xivapi.fetch_gathering", lambda game_id: None)
     monkeypatch.setattr("xivapi.download_craft_icon", lambda icon_id: None)
     monkeypatch.setattr("xivapi.ensure_job_type_icon", lambda type_id: None)
@@ -655,6 +660,12 @@ def test_run_in_background_executes_the_task():
     done = threading.Event()
     routes.run_in_background(done.set)
     assert done.wait(timeout=5)
+
+
+def test_fetching_endpoint_reports_running_lookups(client, monkeypatch):
+    assert client.get("/fetching").get_json() is False
+    monkeypatch.setattr("lists.fetches_running", lambda: True)
+    assert client.get("/fetching").get_json() is True
 
 
 def test_pending_counter_returns_to_zero(client):
