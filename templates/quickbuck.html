@@ -7,6 +7,60 @@
       <div class="card-head">
         <h2 title="{{ selected }}">{{ t("tab_quickbuck") }}{% if selected %} → {{ selected | shorten }}{% endif %}</h2>
       </div>
-      <p class="muted">{{ t("quickbuck_empty") }}</p>
+      <div class="feature-entry">
+        <div>
+          <strong>{{ t("currency_yields_title") }}</strong>
+          <div class="muted">{{ t("currency_yields_desc") }}</div>
+        </div>
+        <button type="button" id="currency-yields-open" class="secondary">{{ t("open") }}</button>
+      </div>
     </section>
+
+    <div id="currency-yields-modal" class="modal" hidden>
+      <div class="modal-box yields-box">
+        <h3>{{ t("currency_yields_title") }}</h3>
+        <div class="filter-row">
+          <select id="currency-yields-currency">
+            <option value="">{{ t("currency_yields_pick_currency") }}</option>
+            {% for currency in currencies %}
+            <option value="{{ currency.id }}">{{ currency.name }}</option>
+            {% endfor %}
+          </select>
+          <select id="currency-yields-world">
+            <option value="">{{ t("currency_yields_pick_world") }}</option>
+            {% for world in worlds %}
+            <option value="{{ world.id }}">{{ world.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" id="currency-yields-units" min="1"
+                 placeholder="{{ t('currency_yields_units') }}" title="{{ t('currency_yields_units_title') }}">
+          <input type="number" id="currency-yields-budget" min="1"
+                 placeholder="{{ t('currency_yields_budget') }}" title="{{ t('currency_yields_budget_title') }}">
+        </div>
+        <p id="currency-yields-status" class="muted" hidden></p>
+        <table id="currency-yields-table" hidden>
+          <thead>
+            <tr>
+              <th>{{ t("currency_yields_col_item") }}</th>
+              <th>{{ t("currency_yields_col_cost") }}</th>
+              <th>{{ t("currency_yields_col_amount") }}</th>
+              <th>{{ t("currency_yields_col_price") }}</th>
+              <th>{{ t("currency_yields_col_avg") }}</th>
+              <th>{{ t("currency_yields_col_min_sale") }}</th>
+              <th>{{ t("currency_yields_col_max_sale") }}</th>
+              <th>{{ t("currency_yields_col_yield") }}</th>
+              <th>{{ t("currency_yields_col_volume") }}</th>
+              <th>{{ t("currency_yields_col_planned") }}</th>
+              <th>{{ t("currency_yields_col_profit") }}</th>
+            </tr>
+          </thead>
+          <tbody id="currency-yields-body"></tbody>
+        </table>
+        <button type="button" id="currency-yields-close" class="secondary">{{ t("modal_close") }}</button>
+      </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='currency-yields.js') }}"></script>
 {% endblock %}

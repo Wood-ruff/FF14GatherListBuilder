@@ -17,6 +17,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.COLLECTABLES.clear()
     xivapi.CRAFTABLES.clear()
     xivapi.MATERIAL_SOURCES.clear()
+    xivapi.CURRENCY_SHOP.clear()
     xivapi.TOMESTONES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
@@ -652,6 +653,7 @@ SEARCH_ITEM_ROWS = {
 ITEM_SEARCH_IDS = {
     "AetherialReduce>=1": [102, 401],
     'Name~"aethersand"': [410],
+    "ItemUICategory=100": [26807, 33913],
 }
 
 SPECIAL_SHOP_PAGE = {"rows": [
@@ -721,6 +723,47 @@ def test_fetch_material_sources_classifies_item_ids(monkeypatch):
     assert sources["scrip"] == {"306": {"price": 200, "bundle": 1, "currency": 33913}}
     assert sources["currency"] == {"304": 26807, "305": 26807, "306": 33913}
     assert sources["prices"] == {"304": 3, "305": 3, "306": 200}
+
+
+def test_fetch_currency_shop_collects_single_currency_trades(monkeypatch):
+    monkeypatch.setattr("requests.get", material_sources_api)
+    shop = xivapi.fetch_currency_shop()
+    assert shop == {
+        "26807": {"304": {"cost": 3, "amount": 1, "locked": False},
+                  "305": {"cost": 3, "amount": 1, "locked": False}},
+        "28": {"305": {"cost": 100, "amount": 1, "locked": False}},
+        "33913": {"306": {"cost": 200, "amount": 1, "locked": False}},
+    }
+
+
+def test_currency_shop_is_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", material_sources_api)
+    xivapi.fetch_currency_shop()
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.CURRENCY_SHOP.clear()
+    assert xivapi.fetch_currency_shop()["28"]["305"]["cost"] == 100
+
+
+def item_names_api(url, params=None, **kwargs):
+    ids = params["rows"].split(",")
+    return FakeResponse({"rows": [
+        {"row_id": int(game_id), "fields": {"Name": f"Item {game_id}"}} for game_id in ids
+    ]})
+
+
+def test_fetch_item_names_batches_and_caches(monkeypatch):
+    monkeypatch.setattr("requests.get", item_names_api)
+    assert xivapi.fetch_item_names([5111, 16]) == {5111: "Item 5111", 16: "Item 16"}
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_item_names([5111, 16]) == {5111: "Item 5111", 16: "Item 16"}
 
 
 def test_timed_items_need_all_their_nodes_timed(monkeypatch):

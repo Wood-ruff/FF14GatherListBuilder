@@ -18,6 +18,7 @@ AETHERYTES = {}
 COLLECTABLES = {}
 CRAFTABLES = {}
 MATERIAL_SOURCES = {}
+CURRENCY_SHOP = {}
 TOMESTONES = {}
 DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
@@ -45,6 +46,7 @@ def clear_cache():
     COLLECTABLES.clear()
     CRAFTABLES.clear()
     MATERIAL_SOURCES.clear()
+    CURRENCY_SHOP.clear()
     TOMESTONES.clear()
     DOWNLOADED_ICONS.clear()
     item_cache.clear()
@@ -900,6 +902,98 @@ def lookup_material_sources():
         "currency": trades["currency"],
         "prices": trades["prices"],
     }
+
+
+CURRENCY_CATEGORY_QUERY = "ItemUICategory=100"
+
+
+def fetch_currency_shop():
+    """Return what every currency buys from memory, the cache file, or the api."""
+    if CURRENCY_SHOP:
+        return dict(CURRENCY_SHOP)
+    data = item_cache.get_fresh_result("all", "currency_shop")
+    if data is None:
+        data = lookup_currency_shop()
+        if data is not None:
+            item_cache.store_result("all", data, "currency_shop")
+    if data is not None:
+        CURRENCY_SHOP.update(data)
+    return data
+
+
+def lookup_currency_shop():
+    """Collect the special shop offers that are paid with exactly one real currency."""
+    currencies = search_item_ids(CURRENCY_CATEGORY_QUERY)
+    if currencies is None:
+        return None
+    tomestones = tomestone_currency_ids()
+    if tomestones is None:
+        return None
+    currency_ids = set(currencies) | set(tomestones.values())
+    shops = sheet_rows("SpecialShop", SPECIAL_SHOP_FIELDS, limit=100)
+    if shops is None:
+        return None
+    offers = {}
+    for fields in shops.values():
+        for trade in fields["Item"]:
+            collect_currency_offer(trade, offers, currency_ids, tomestones)
+    return offers
+
+
+def collect_currency_offer(trade, offers, currency_ids, tomestones):
+    """Record one trade under its currency when a single known currency pays it."""
+    costs = trade_costs(trade, tomestones)
+    if len(costs) != 1 or costs[0][0] not in currency_ids:
+        return
+    currency, cost = costs[0]
+    gated = trade.get("Quest@as(raw)", 0) > 0 or trade.get("AchievementUnlock@as(raw)", 0) > 0
+    counts = trade.get("ReceiveCount", [])
+    for slot, item_id in enumerate(trade.get(RAW_ITEM_FIELD, [])):
+        if item_id <= 0:
+            continue
+        amount = max(counts[slot] if slot < len(counts) else 1, 1)
+        keep_cheapest_offer(offers, currency, item_id, cost, amount, gated)
+
+
+def keep_cheapest_offer(offers, currency, item_id, cost, amount, gated):
+    """Keep the best price per received unit for one currency and item pair."""
+    entries = offers.setdefault(str(currency), {})
+    known = entries.get(str(item_id))
+    if known is None or cost / amount < known["cost"] / known["amount"]:
+        entries[str(item_id)] = {"cost": cost, "amount": amount, "locked": gated}
+
+
+def fetch_item_names(game_ids):
+    """Return display names by item id, fetching all missing ones in one call."""
+    language = settings.get_language()
+    names = {}
+    missing = []
+    for game_id in game_ids:
+        cached = item_cache.get_fresh_result(f"{language}:{game_id}", "item_name")
+        if cached is None:
+            missing.append(game_id)
+        else:
+            names[game_id] = cached
+    if missing:
+        names.update(lookup_item_names(missing, language))
+    return names
+
+
+def lookup_item_names(game_ids, language):
+    """Fetch the names of the item ids in one sheet call and cache them."""
+    data = get_json(f"{SHEET_URL}/Item", {
+        "rows": ",".join(str(game_id) for game_id in game_ids),
+        "fields": "Name",
+        "language": language,
+        "limit": len(game_ids),
+    })
+    if data is None:
+        return {}
+    names = {row["row_id"]: row["fields"]["Name"] for row in data["rows"]}
+    item_cache.store_results(
+        {f"{language}:{game_id}": name for game_id, name in names.items()}, "item_name"
+    )
+    return names
 
 
 def scrip_only_prices(trades):

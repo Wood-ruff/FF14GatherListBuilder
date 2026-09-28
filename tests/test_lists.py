@@ -781,6 +781,61 @@ def test_item_sources_infer_loot_and_reject_unknown_items(tmp_path, monkeypatch)
     assert lists.get_item_sources("Mats", 99) is None
 
 
+def fake_currency_shop():
+    return {"26807": {
+        "100": {"cost": 2, "amount": 1, "locked": False},
+        "101": {"cost": 4, "amount": 2, "locked": True},
+        "102": {"cost": 1, "amount": 1, "locked": False},
+        "103": {"cost": 1, "amount": 1, "locked": False},
+    }}
+
+
+def test_currency_yields_rank_by_gil_per_unit(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_currency_shop", fake_currency_shop)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: {100, 101, 103})
+    stats = {
+        100: {"price": 500, "avg_price": 480, "min_sale": 450, "max_sale": 520, "week_volume": 70},
+        101: {"price": 2000, "avg_price": 2400, "min_sale": 1800, "max_sale": 2900, "week_volume": 7},
+        103: {"price": 0, "avg_price": 0, "min_sale": 0, "max_sale": 0, "week_volume": 0},
+    }
+    monkeypatch.setattr("universalis.fetch_market_stats",
+                        lambda world, ids: {item_id: stats[item_id] for item_id in ids})
+    monkeypatch.setattr("xivapi.fetch_item_names",
+                        lambda ids: {item_id: f"Item {item_id}" for item_id in ids})
+    entries = lists.get_currency_yields(26807, 66)
+    assert [entry["game_id"] for entry in entries] == [101, 100]
+    assert entries[0]["yield"] == 1000.0
+    assert entries[0]["avg_price"] == 2400
+    assert entries[0]["min_sale"] == 1800
+    assert entries[0]["max_sale"] == 2900
+    assert entries[0]["locked"] is True
+    assert entries[0]["name"] == "Item 101"
+    assert entries[1]["yield"] == 250.0
+    assert entries[1]["week_volume"] == 70
+
+
+def test_currency_yields_fail_without_market_data(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_currency_shop", fake_currency_shop)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: None)
+    assert lists.get_currency_yields(26807, 66) is None
+
+
+def test_currency_options_are_sorted_by_name(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_currency_shop", lambda: {"33913": {}, "26807": {}})
+    names = {26807: "Bicolor Gemstone", 33913: "Purple Crafters' Scrip"}
+    monkeypatch.setattr("xivapi.fetch_item_names", lambda ids: names)
+    assert lists.get_currency_options() == [
+        {"id": 26807, "name": "Bicolor Gemstone"},
+        {"id": 33913, "name": "Purple Crafters' Scrip"},
+    ]
+
+
+def test_worlds_are_sorted_by_name(monkeypatch):
+    worlds = [{"id": 66, "name": "Odin"}, {"id": 33, "name": "Twintania"}, {"id": 39, "name": "Alpha"}]
+    monkeypatch.setattr("universalis.fetch_worlds", lambda: worlds)
+    assert [world["name"] for world in lists.get_worlds()] == ["Alpha", "Odin", "Twintania"]
+
+
 def test_craft_costs_sort_crystals_last(monkeypatch):
     craftable = dict(source_craftable(1, "Mixed", 100), ingredients=[
         {"name": "Ice Crystal", "game_id": 9, "amount": 8},

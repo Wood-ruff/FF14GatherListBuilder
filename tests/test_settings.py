@@ -20,3 +20,8 @@ def test_set_and_get_language():
 def test_unsupported_language_is_rejected():
     settings.set_language("klingon")
     assert settings.get_language() == "en"
+
+
+def test_unreadable_settings_count_as_empty():
+    settings.SETTINGS_FILE.write_text("", encoding="utf-8")
+    assert settings.get_language() == "en"

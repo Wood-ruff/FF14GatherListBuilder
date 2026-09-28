@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -41,8 +41,23 @@ def test_expired_entry_returns_none(monkeypatch):
 def test_entry_gets_fetchdate_and_type():
     item_cache.store_result("Iron Ore", RESULT)
     entry = item_cache.load_cache()["item:iron ore"]
-    assert entry["fetchdate"] == date.today().isoformat()
+    assert entry["fetchdate"].startswith(date.today().isoformat())
     assert entry["type"] == "item"
+
+
+def test_hour_based_expiry_only_affects_short_lived_kinds():
+    item_cache.store_result("Iron Ore", RESULT)
+    cache = item_cache.load_cache()
+    cache["item:iron ore"]["fetchdate"] = (datetime.now() - timedelta(hours=4)).isoformat()
+    item_cache.CACHE_FILE.write_text(json.dumps(cache))
+    assert item_cache.get_fresh_result("Iron Ore", max_age_hours=3) is None
+    assert item_cache.get_fresh_result("Iron Ore") == RESULT
+
+
+def test_get_fresh_results_reads_many_in_one_go():
+    item_cache.store_results({"66:100": {"price": 5}, "66:101": {"price": 7}}, "market_stats")
+    results = item_cache.get_fresh_results(["66:100", "66:101", "66:102"], "market_stats")
+    assert results == {"66:100": {"price": 5}, "66:101": {"price": 7}}
 
 
 def test_icon_store_and_check():

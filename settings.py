@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 SETTINGS_FILE = Path(__file__).parent / "data" / "settings.json"
@@ -21,15 +22,20 @@ def set_language(language):
 
 
 def load_settings():
-    """Return the settings file contents, or an empty dict if it does not exist."""
+    """Return the settings file contents, or an empty dict when missing or unreadable."""
     if not SETTINGS_FILE.exists():
         return {}
     with open(SETTINGS_FILE, encoding="utf-8") as file:
-        return json.load(file)
+        try:
+            return json.load(file)
+        except ValueError:
+            return {}
 
 
 def save_settings(all_settings):
-    """Write all settings to the settings file."""
+    """Write all settings to a temp file and swap it in atomically."""
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
+    temp_file = SETTINGS_FILE.with_suffix(".tmp")
+    with open(temp_file, "w", encoding="utf-8") as file:
         json.dump(all_settings, file, indent=2)
+    os.replace(temp_file, SETTINGS_FILE)

@@ -205,9 +205,24 @@ def show_craftables():
 
 @routes.get("/quick-buck")
 def show_quick_buck():
-    """Show the quick buck tab for quick daily gil making."""
+    """Show the quick buck tab with its gil making features."""
     selected = request.args.get("list", "").strip()
-    return render_template("quickbuck.html", **page_context(selected, "quickbuck"))
+    return render_template(
+        "quickbuck.html",
+        currencies=lists.get_currency_options(),
+        worlds=lists.get_worlds(),
+        **page_context(selected, "quickbuck"),
+    )
+
+
+@routes.get("/currency-yields")
+def currency_yields():
+    """Return the best ways to spend one currency on one world as JSON."""
+    currency = request.args.get("currency", "")
+    world = request.args.get("world", "")
+    if not currency.isdigit() or not world.isdigit():
+        return jsonify(None)
+    return jsonify(lists.get_currency_yields(int(currency), int(world)))
 
 
 @routes.post("/craftables/add")

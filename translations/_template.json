@@ -159,6 +159,98 @@
     "english": "Check market board prices on Universalis",
     "translation": ""
   },
+  "currency_yields_title": {
+    "english": "Currency yields",
+    "translation": ""
+  },
+  "currency_yields_desc": {
+    "english": "The most gil per unit for your scrips, gemstones and tomestones, with market trade volume.",
+    "translation": ""
+  },
+  "currency_yields_pick_currency": {
+    "english": "Currency…",
+    "translation": ""
+  },
+  "currency_yields_pick_world": {
+    "english": "Server…",
+    "translation": ""
+  },
+  "currency_yields_loading": {
+    "english": "Fetching market prices…",
+    "translation": ""
+  },
+  "currency_yields_empty": {
+    "english": "Nothing sellable found for this currency.",
+    "translation": ""
+  },
+  "currency_yields_failed": {
+    "english": "Market data is unavailable right now.",
+    "translation": ""
+  },
+  "currency_yields_col_item": {
+    "english": "Item",
+    "translation": ""
+  },
+  "currency_yields_col_cost": {
+    "english": "Cost",
+    "translation": ""
+  },
+  "currency_yields_col_amount": {
+    "english": "Amount",
+    "translation": ""
+  },
+  "currency_yields_col_price": {
+    "english": "Current lowest price",
+    "translation": ""
+  },
+  "currency_yields_col_avg": {
+    "english": "Ø price 7 days",
+    "translation": ""
+  },
+  "currency_yields_col_min_sale": {
+    "english": "Lowest sale 7 days",
+    "translation": ""
+  },
+  "currency_yields_col_max_sale": {
+    "english": "Highest sale 7 days",
+    "translation": ""
+  },
+  "currency_yields_col_yield": {
+    "english": "Gil per unit",
+    "translation": ""
+  },
+  "currency_yields_col_volume": {
+    "english": "Sold / 7 days",
+    "translation": ""
+  },
+  "currency_yields_col_planned": {
+    "english": "Planned units",
+    "translation": ""
+  },
+  "currency_yields_col_profit": {
+    "english": "Projected gil",
+    "translation": ""
+  },
+  "currency_yields_units": {
+    "english": "Units per item…",
+    "translation": ""
+  },
+  "currency_yields_units_title": {
+    "english": "How many of each item you plan to sell",
+    "translation": ""
+  },
+  "currency_yields_budget": {
+    "english": "Currency owned…",
+    "translation": ""
+  },
+  "currency_yields_budget_title": {
+    "english": "How much of the currency you have to spend",
+    "translation": ""
+  },
+  "currency_yields_volume_warning": {
+    "english": "Unlikely to sell within 7 days — planned amount exceeds what this trade volume realistically absorbs",
+    "translation": ""
+  },
   "pin_popup": {
     "english": "Pin popup — it stays open and the page stays usable",
     "translation": ""

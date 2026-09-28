@@ -5,6 +5,7 @@ from pathlib import Path
 
 import settings
 import storage
+import universalis
 import xivapi
 
 VALID_LIST_NAME = re.compile(r"^[\w ,'-]{1,50}$", re.UNICODE)
@@ -1000,6 +1001,68 @@ def currency_display_name(currency_id):
     if currency:
         return currency["fields"]["Name"]
     return None
+
+
+YIELD_RESULT_LIMIT = 20
+
+
+def get_currency_options():
+    """Return the spendable currencies for the yield calculator, sorted by name."""
+    shop = xivapi.fetch_currency_shop() or {}
+    ids = [int(currency_id) for currency_id in shop]
+    names = xivapi.fetch_item_names(ids)
+    options = [{"id": currency_id, "name": names[currency_id]}
+               for currency_id in ids if names.get(currency_id)]
+    return sorted(options, key=lambda option: option["name"])
+
+
+def get_worlds():
+    """Return all game worlds for the server dropdown, sorted by name."""
+    worlds = universalis.fetch_worlds() or []
+    return sorted(worlds, key=lambda world: world["name"])
+
+
+def get_currency_yields(currency_id, world_id):
+    """Rank what one currency buys by gil yield per unit on one world's market."""
+    shop = xivapi.fetch_currency_shop() or {}
+    offers = shop.get(str(currency_id), {})
+    marketable = universalis.fetch_marketable_ids()
+    if marketable is None:
+        return None
+    sellable = {int(item_id): offer for item_id, offer in offers.items()
+                if int(item_id) in marketable}
+    stats = universalis.fetch_market_stats(world_id, sorted(sellable))
+    if stats is None:
+        return None
+    entries = build_yield_entries(sellable, stats)
+    entries.sort(key=lambda entry: entry["yield"], reverse=True)
+    entries = entries[:YIELD_RESULT_LIMIT]
+    names = xivapi.fetch_item_names([entry["game_id"] for entry in entries])
+    for entry in entries:
+        entry["name"] = names.get(entry["game_id"], "")
+    return entries
+
+
+def build_yield_entries(offers, stats):
+    """Build one yield row per offer that currently sells on the market."""
+    entries = []
+    for item_id, offer in offers.items():
+        market = stats.get(item_id)
+        if market is None or market["price"] <= 0:
+            continue
+        entries.append({
+            "game_id": item_id,
+            "cost": offer["cost"],
+            "amount": offer["amount"],
+            "price": market["price"],
+            "avg_price": market["avg_price"],
+            "min_sale": market["min_sale"],
+            "max_sale": market["max_sale"],
+            "yield": round(market["price"] * offer["amount"] / offer["cost"], 1),
+            "week_volume": market["week_volume"],
+            "locked": offer["locked"],
+        })
+    return entries
 
 
 def alarm_sounds():

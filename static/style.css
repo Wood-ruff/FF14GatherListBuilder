@@ -1016,3 +1016,47 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+.feature-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.yields-box {
+  text-align: left;
+  width: min(1400px, 96vw);
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.yields-box table {
+  margin-bottom: 16px;
+}
+
+.yields-box th,
+.yields-box td {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.yields-box th:not(:first-child),
+.yields-box td:not(:first-child) {
+  text-align: right;
+}
+
+.yields-box .yield-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.yields-box tr.volume-warning td {
+  background: rgba(240, 190, 60, 0.14);
+}
+
+.volume-warning-marker {
+  cursor: help;
+}

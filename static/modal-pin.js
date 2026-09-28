@@ -14,6 +14,9 @@ const PINNABLE_MODALS = {
     document.getElementById("craft-costs-modal").hidden = false;
     fetchCraftCosts();
   },
+  "currency-yields-modal": function () {
+    openCurrencyYields();
+  },
 };
 
 const DRAG_HANDLE_HEIGHT = 48;

@@ -14,6 +14,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_material_sources", lambda: None)
     monkeypatch.setattr("xivapi.fetch_item_offers", lambda game_id: [])
     monkeypatch.setattr("xivapi.fetch_item_details", lambda game_id: None)
+    monkeypatch.setattr("xivapi.fetch_currency_shop", lambda: {})
+    monkeypatch.setattr("xivapi.fetch_item_names", lambda ids: {})
+    monkeypatch.setattr("universalis.fetch_worlds", lambda: [])
     monkeypatch.setattr("settings.SETTINGS_FILE", tmp_path / "settings.json")
     return app.test_client()
 
@@ -457,6 +460,30 @@ def test_quick_buck_tab_loads(client):
     page = client.get("/quick-buck").get_data(as_text=True)
     assert "Quick Buck" in page
     assert 'placeholder="New list name"' in page
+
+
+def test_quick_buck_shows_currency_and_world_options(client, monkeypatch):
+    monkeypatch.setattr("lists.get_currency_options", lambda: [{"id": 26807, "name": "Bicolor Gemstone"}])
+    monkeypatch.setattr("lists.get_worlds", lambda: [{"id": 66, "name": "Odin"}])
+    page = client.get("/quick-buck").get_data(as_text=True)
+    assert "Bicolor Gemstone" in page
+    assert "Odin" in page
+    assert 'id="currency-yields-modal"' in page
+    assert 'id="currency-yields-units"' in page
+    assert 'id="currency-yields-budget"' in page
+
+
+def test_currency_yields_endpoint_returns_entries(client, monkeypatch):
+    entries = [{"game_id": 100, "name": "Thing", "cost": 2, "amount": 1, "price": 500,
+                "avg_price": 480, "min_sale": 450, "max_sale": 520, "yield": 250.0,
+                "week_volume": 70, "locked": False}]
+    monkeypatch.setattr("lists.get_currency_yields", lambda currency, world: entries)
+    assert client.get("/currency-yields?currency=26807&world=66").get_json() == entries
+
+
+def test_currency_yields_endpoint_rejects_bad_params(client):
+    assert client.get("/currency-yields?currency=x&world=66").get_json() is None
+    assert client.get("/currency-yields?currency=26807").get_json() is None
 
 
 def test_quick_buck_tab_is_linked_in_navigation(client):

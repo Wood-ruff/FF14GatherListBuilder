@@ -36,3 +36,15 @@ def test_delete_missing_list_is_harmless(tmp_path, monkeypatch):
 def test_load_missing_list_returns_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("storage.DATA_DIR", tmp_path)
     assert storage.load_items("Missing") == []
+
+
+def test_load_unreadable_list_counts_as_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    (tmp_path / "Broken.json").write_text("", encoding="utf-8")
+    assert storage.load_items("Broken") == []
+
+
+def test_saving_leaves_no_temp_file_behind(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    storage.save_items("Logs", [{"name": "Maple Log", "amount": 10}])
+    assert [path.name for path in tmp_path.iterdir()] == ["Logs.json"]
