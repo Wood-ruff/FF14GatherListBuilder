@@ -36,6 +36,9 @@ function sourceRows(info) {
   if (info.craftable) {
     rows.push(sourceRow(msg("sources_craft", "Craftable"), ""));
   }
+  if (info.reduction) {
+    rows.push(sourceRow(msg("sources_reduction", "Aetherial Reduction"), msg("sources_reduction_hint", "from reducing gathered collectables")));
+  }
   if (info.gil) {
     rows.push(sourceRow(msg("craft_costs_gil", "gil vendor"), "", 1));
   }
@@ -53,6 +56,9 @@ function sourceRows(info) {
   }
   if (info.loot) {
     rows.push(sourceRow(msg("sources_loot", "mob drops / desynthesis / other"), ""));
+  }
+  if (info.reducible) {
+    rows.push(sourceRow(msg("sources_reducible", "Reducible"), msg("sources_reducible_hint", "can be aetherially reduced")));
   }
   return rows;
 }

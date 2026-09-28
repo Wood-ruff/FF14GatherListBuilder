@@ -59,6 +59,30 @@ def test_clear_removes_file_and_icons():
     assert not item_cache.has_icon(5111)
 
 
+def test_damaged_cache_file_salvages_the_first_document():
+    item_cache.store_result("Iron Ore", RESULT)
+    with open(item_cache.CACHE_FILE, "a", encoding="utf-8") as file:
+        file.write("    }\n  }\n}")
+    assert item_cache.get_fresh_result("Iron Ore") == RESULT
+
+
+def test_unreadable_cache_file_counts_as_empty():
+    item_cache.CACHE_FILE.write_text("no json at all", encoding="utf-8")
+    assert item_cache.load_cache() == {}
+    item_cache.CACHE_FILE.write_text("42 garbage", encoding="utf-8")
+    assert item_cache.load_cache() == {}
+
+
+def test_storing_heals_a_damaged_cache_file():
+    item_cache.store_result("Iron Ore", RESULT)
+    with open(item_cache.CACHE_FILE, "a", encoding="utf-8") as file:
+        file.write("}}}")
+    item_cache.store_result("Coke", {"row_id": 1})
+    healed = json.loads(item_cache.CACHE_FILE.read_text(encoding="utf-8"))
+    assert healed["item:iron ore"]["result"] == RESULT
+    assert healed["item:coke"]["result"] == {"row_id": 1}
+
+
 def test_item_and_recipe_entries_are_separate():
     recipe = {"yields": 1, "ingredients": []}
     item_cache.store_result("Iron Ore", RESULT, "item")

@@ -15,6 +15,7 @@ function pollPendingAdds() {
     .then(function (count) {
       if (count > 0) {
         sawPendingAdds = true;
+        showBackgroundWorkingToast();
         setTimeout(pollPendingAdds, 2000);
       } else {
         watchingAdds = false;
@@ -26,6 +27,13 @@ function pollPendingAdds() {
     .catch(function () {
       watchingAdds = false;
     });
+}
+
+function showBackgroundWorkingToast() {
+  const toast = document.getElementById("toast");
+  if (!toast.classList.contains("show")) {
+    displayToast(msg("toast_background_working", "Fetching data in the background…"), 2500);
+  }
 }
 
 function finishPendingAdds() {

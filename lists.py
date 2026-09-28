@@ -964,6 +964,8 @@ def item_source_info(item):
         "craftable": bool(item.get("craftable")),
         "gatherable": game_id in sources.get("gatherable", ()),
         "timed": game_id in sources.get("timed", ()),
+        "reduction": game_id in sources.get("reduction", ()),
+        "reducible": game_id in sources.get("reducible", ()),
         "gil": game_id in sources.get("gil", ()),
         "scrip": scrip,
         "gemstone": game_id in sources.get("gemstone", ()),
@@ -973,6 +975,7 @@ def item_source_info(item):
     }
     info["loot"] = not any((
         info["crystal"], info["gatherable"], info["gil"], info["special"], info["craftable"],
+        info["reduction"],
     ))
     currency = scrip["currency"] if scrip else sources.get("currency", {}).get(game_id)
     info["currency"] = currency

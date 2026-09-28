@@ -649,6 +649,11 @@ SEARCH_ITEM_ROWS = {
     "GCScripShopItem": {41: 303},
 }
 
+ITEM_SEARCH_IDS = {
+    "AetherialReduce>=1": [102, 401],
+    'Name~"aethersand"': [410],
+}
+
 SPECIAL_SHOP_PAGE = {"rows": [
     {"row_id": 1769601, "fields": {"Item": [
         {"Item@as(raw)": [301, 0], "Quest@as(raw)": 0, "AchievementUnlock@as(raw)": 0},
@@ -692,6 +697,10 @@ def material_sources_api(url, params=None, **kwargs):
             return FakeResponse(page)
     if url.endswith("/SpecialShop"):
         return FakeResponse(SPECIAL_SHOP_PAGE)
+    if params["sheets"] == "Item":
+        return FakeResponse({"results": [
+            {"row_id": item_id, "fields": {"Name": ""}} for item_id in ITEM_SEARCH_IDS[params["query"]]
+        ]})
     rows = SEARCH_ITEM_ROWS[params["sheets"]]
     return FakeResponse({"results": [
         {"row_id": row_id, "fields": {"Item@as(raw)": item_id}} for row_id, item_id in rows.items()
@@ -703,6 +712,8 @@ def test_fetch_material_sources_classifies_item_ids(monkeypatch):
     sources = xivapi.fetch_material_sources()
     assert sources["gatherable"] == [101, 102, 103, 104]
     assert sources["timed"] == [101]
+    assert sources["reducible"] == [102, 401]
+    assert sources["reduction"] == [410]
     assert sources["gil"] == [101, 201]
     assert sources["special"] == [301, 302, 303, 304, 305, 306]
     assert sources["locked"] == [302]

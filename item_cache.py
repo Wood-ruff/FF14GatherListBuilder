@@ -1,11 +1,18 @@
 import json
+import logging
+import os
 import shutil
+import threading
 from datetime import date, timedelta
 from pathlib import Path
 
 CACHE_FILE = Path(__file__).parent / "data" / "cache" / "item_cache.json"
 ICONS_DIR = Path(__file__).parent / "data" / "cache" / "icons"
 MAX_AGE_DAYS = 60
+
+CACHE_LOCK = threading.Lock()
+
+LOG = logging.getLogger(__name__)
 
 
 def get_fresh_result(name, kind="item"):
@@ -25,21 +32,24 @@ def store_result(name, result, kind="item"):
 
 def store_results(results, kind):
     """Save many results of one kind with today's date in a single write."""
-    cache = load_cache()
-    for name, result in results.items():
-        cache[cache_key(name, kind)] = {
-            "fetchdate": date.today().isoformat(),
-            "type": kind,
-            "result": result,
-        }
-    save_cache(cache)
+    with CACHE_LOCK:
+        cache = read_cache_file()
+        for name, result in results.items():
+            cache[cache_key(name, kind)] = {
+                "fetchdate": date.today().isoformat(),
+                "type": kind,
+                "result": result,
+            }
+        save_cache(cache)
 
 
 def save_cache(cache):
-    """Write the full cache contents to the cache file."""
+    """Write the full cache contents to a temp file and swap it in atomically."""
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CACHE_FILE, "w", encoding="utf-8") as file:
+    temp_file = CACHE_FILE.with_suffix(".tmp")
+    with open(temp_file, "w", encoding="utf-8") as file:
         json.dump(cache, file, indent=2)
+    os.replace(temp_file, CACHE_FILE)
 
 
 def cache_key(name, kind):
@@ -66,15 +76,38 @@ def store_icon(game_id, png_bytes):
 
 def clear():
     """Delete the cache file and all cached icons."""
-    if CACHE_FILE.exists():
-        CACHE_FILE.unlink()
+    with CACHE_LOCK:
+        if CACHE_FILE.exists():
+            CACHE_FILE.unlink()
     if ICONS_DIR.exists():
         shutil.rmtree(ICONS_DIR)
 
 
 def load_cache():
     """Return the full cache file contents, or an empty dict if it does not exist."""
+    with CACHE_LOCK:
+        return read_cache_file()
+
+
+def read_cache_file():
+    """Parse the cache file, salvaging what a damaged file still holds."""
     if not CACHE_FILE.exists():
         return {}
     with open(CACHE_FILE, encoding="utf-8") as file:
-        return json.load(file)
+        text = file.read()
+    try:
+        return json.loads(text)
+    except ValueError:
+        return salvage_cache(text)
+
+
+def salvage_cache(text):
+    """Return the first complete json document in the text, or an empty dict."""
+    LOG.warning("cache file is damaged, salvaging its readable part")
+    try:
+        cache, _rest = json.JSONDecoder().raw_decode(text)
+    except ValueError:
+        return {}
+    if not isinstance(cache, dict):
+        return {}
+    return cache

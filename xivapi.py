@@ -842,7 +842,7 @@ COST_TYPE_TOMESTONE = 2
 COST_TYPE_SCRIP = 3
 SCRIP_COST_INDEXES = {2: 33913, 4: 33914, 6: 41784, 7: 41785}
 SCRIP_ITEM_IDS = set(SCRIP_COST_INDEXES.values())
-REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency", "prices")
+REQUIRED_SOURCE_KEYS = ("timed", "gemstone", "scrip", "currency", "prices", "reducible", "reduction")
 
 
 def fetch_material_sources():
@@ -881,9 +881,17 @@ def lookup_material_sources():
     trades = special_shop_items()
     if trades is None:
         return None
+    reducible = search_item_ids("AetherialReduce>=1")
+    if reducible is None:
+        return None
+    aethersands = search_item_ids('Name~"aethersand"')
+    if aethersands is None:
+        return None
     return {
         "gatherable": sorted(gatherable),
         "timed": sorted(timed),
+        "reducible": reducible,
+        "reduction": aethersands,
         "gil": sorted(gil),
         "special": sorted(trades["open"] | trades["locked"] | set(seals)),
         "locked": sorted(trades["locked"] - trades["open"] - set(seals)),
@@ -1225,6 +1233,22 @@ def sheet_rows(sheet, fields, limit=500):
             break
         params = dict(params, after=data["rows"][-1]["row_id"])
     return rows
+
+
+def search_item_ids(query):
+    """Collect the item ids matching one english Item sheet search, paging the results."""
+    params = {"sheets": "Item", "query": query, "limit": 500, "language": "en", "fields": "Name"}
+    ids = set()
+    for _page in range(40):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        for row in data["results"]:
+            ids.add(row["row_id"])
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": "Name"}
+    return sorted(ids)
 
 
 def sheet_item_ids(sheet):

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% with picker_action = "/quick-buck" %}{% include "_list_picker.html" %}{% endwith %}
+
+    <section class="card">
+      <div class="card-head">
+        <h2 title="{{ selected }}">{{ t("tab_quickbuck") }}{% if selected %} → {{ selected | shorten }}{% endif %}</h2>
+      </div>
+      <p class="muted">{{ t("quickbuck_empty") }}</p>
+    </section>
+{% endblock %}

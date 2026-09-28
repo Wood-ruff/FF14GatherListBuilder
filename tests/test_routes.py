@@ -453,6 +453,17 @@ def test_collectables_tab_lists_items(client, monkeypatch):
     assert 'id="marked-filter"' in page
 
 
+def test_quick_buck_tab_loads(client):
+    page = client.get("/quick-buck").get_data(as_text=True)
+    assert "Quick Buck" in page
+    assert 'placeholder="New list name"' in page
+
+
+def test_quick_buck_tab_is_linked_in_navigation(client):
+    page = client.get("/").get_data(as_text=True)
+    assert 'href="/quick-buck?list="' in page
+
+
 def test_list_picker_is_on_both_tabs(client, monkeypatch):
     monkeypatch.setattr("xivapi.fetch_collectables", lambda: [])
     main_page = client.get("/").get_data(as_text=True)
@@ -619,6 +630,11 @@ def test_pending_counter_returns_to_zero(client):
             break
         time.sleep(0.1)
     assert client.get("/pending").get_json() == 0
+
+
+def test_fetch_toast_script_is_on_the_page(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "fetch-toast.js" in page
 
 
 def test_backgrounds_are_passed_to_the_page(client):

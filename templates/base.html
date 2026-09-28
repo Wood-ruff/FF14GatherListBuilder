@@ -70,6 +70,7 @@
     <a href="/?list={{ selected }}" class="tab {% if active_tab == 'lists' %}active{% endif %}">{{ t("tab_lists") }}</a>
     <a href="/collectables?list={{ selected }}" class="tab {% if active_tab == 'collectables' %}active{% endif %}">{{ t("tab_collectables") }}</a>
     <a href="/craftables?list={{ selected }}" class="tab {% if active_tab == 'craftables' %}active{% endif %}">{{ t("tab_craftables") }}</a>
+    <a href="/quick-buck?list={{ selected }}" class="tab {% if active_tab == 'quickbuck' %}active{% endif %}">{{ t("tab_quickbuck") }}</a>
   </nav>
 
   <main>
@@ -104,6 +105,7 @@
 
   <script src="{{ url_for('static', filename='suggest.js') }}"></script>
   <script src="{{ url_for('static', filename='copy.js') }}"></script>
+  <script src="{{ url_for('static', filename='fetch-toast.js') }}"></script>
   <script src="{{ url_for('static', filename='ajax-add.js') }}"></script>
   <script src="{{ url_for('static', filename='timer.js') }}"></script>
   <script src="{{ url_for('static', filename='filters.js') }}"></script>

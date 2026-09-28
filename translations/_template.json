@@ -11,6 +11,14 @@
     "english": "Craftable Collectables",
     "translation": ""
   },
+  "tab_quickbuck": {
+    "english": "Quick Buck",
+    "translation": ""
+  },
+  "quickbuck_empty": {
+    "english": "Nothing here yet — quick daily gil earners will show up here.",
+    "translation": ""
+  },
   "alarm_off": {
     "english": "Alarm off",
     "translation": ""
@@ -117,6 +125,22 @@
   },
   "sources_price": {
     "english": "{price} {currency}",
+    "translation": ""
+  },
+  "sources_reduction": {
+    "english": "Aetherial Reduction",
+    "translation": ""
+  },
+  "sources_reduction_hint": {
+    "english": "from reducing gathered collectables",
+    "translation": ""
+  },
+  "sources_reducible": {
+    "english": "Reducible",
+    "translation": ""
+  },
+  "sources_reducible_hint": {
+    "english": "can be aetherially reduced",
     "translation": ""
   },
   "sources_none": {
@@ -477,6 +501,14 @@
   },
   "toast_add_failed": {
     "english": "Adding failed",
+    "translation": ""
+  },
+  "toast_fetching": {
+    "english": "Fetching game data…",
+    "translation": ""
+  },
+  "toast_background_working": {
+    "english": "Fetching data in the background…",
     "translation": ""
   },
   "toast_background_done": {

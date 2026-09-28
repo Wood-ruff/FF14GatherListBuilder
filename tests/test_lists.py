@@ -597,8 +597,9 @@ def source_craftable(game_id, name, mat_id):
 
 
 def fake_sources(**overrides):
-    sources = {"gatherable": [], "timed": [], "gil": [], "special": [],
-               "locked": [], "gemstone": [], "scrip": {}, "currency": {}, "prices": {}}
+    sources = {"gatherable": [], "timed": [], "gil": [], "special": [], "locked": [],
+               "gemstone": [], "reducible": [], "reduction": [],
+               "scrip": {}, "currency": {}, "prices": {}}
     sources.update(overrides)
     return sources
 
@@ -749,6 +750,25 @@ def test_item_sources_collect_all_known_ways(tmp_path, monkeypatch):
     assert info["offers"] == [
         {"shop": None, "currency": 1, "price": 250, "vendor": vendor, "currency_name": None}
     ]
+
+
+def test_item_sources_mark_reduction_results_as_sourced(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 1)
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: fake_sources(reduction=[5111]))
+    info = lists.get_item_sources("Mats", 1)
+    assert info["reduction"] is True
+    assert info["loot"] is False
+
+
+def test_item_sources_mark_reducible_items(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    lists.add_item("Mats", "Iron Ore", 1)
+    sources = fake_sources(gatherable=[5111], reducible=[5111])
+    monkeypatch.setattr("xivapi.fetch_material_sources", lambda: sources)
+    info = lists.get_item_sources("Mats", 1)
+    assert info["reducible"] is True
+    assert info["reduction"] is False
 
 
 def test_item_sources_infer_loot_and_reject_unknown_items(tmp_path, monkeypatch):

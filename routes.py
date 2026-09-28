@@ -203,6 +203,13 @@ def show_craftables():
     )
 
 
+@routes.get("/quick-buck")
+def show_quick_buck():
+    """Show the quick buck tab for quick daily gil making."""
+    selected = request.args.get("list", "").strip()
+    return render_template("quickbuck.html", **page_context(selected, "quickbuck"))
+
+
 @routes.post("/craftables/add")
 def add_craftable():
     """Queue adding one craftable collectable with its materials to the selected list."""
