@@ -61,6 +61,10 @@
           <input type="hidden" name="list" value="{{ selected }}">
           <button type="submit" class="secondary" {% if not selected %}disabled{% endif %}>{{ t("refetch_list") }}</button>
         </form>
+        <form method="post" action="/refresh-prices">
+          <input type="hidden" name="list" value="{{ selected }}">
+          <button type="submit" class="secondary" title="{{ t('refresh_prices_title') }}">{{ t("refresh_prices") }}</button>
+        </form>
       </div>
     </div>
   </header>

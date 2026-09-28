@@ -69,6 +69,12 @@ def fresh_entry_result(entry, max_age_hours):
     return entry["result"]
 
 
+def names_of_kind(kind):
+    """List the names of every cached entry of one kind, fresh or not."""
+    prefix = f"{kind}:"
+    return [key[len(prefix):] for key in load_cache() if key.startswith(prefix)]
+
+
 def store_result(name, result, kind="item"):
     """Save one result of the given kind with today's date in the cache file."""
     store_results({name: result}, kind)

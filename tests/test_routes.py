@@ -786,3 +786,13 @@ def test_list_prices_return_the_service_result(client, monkeypatch):
     )
     data = client.get("/list-prices?list=Demo&world=66&ids=5111,16,x").get_json()
     assert data == {"args": ["Demo", 66, [5111, 16]]}
+
+
+def test_refresh_prices_runs_in_background(client, monkeypatch):
+    import threading
+
+    done = threading.Event()
+    monkeypatch.setattr("lists.refresh_market_prices", lambda: done.set())
+    response = client.post("/refresh-prices", data={"list": "Demo"})
+    assert response.status_code == 302
+    assert done.wait(2)

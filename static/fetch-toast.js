@@ -1,6 +1,6 @@
 const FETCHING_ACTIONS = [
   "/add", "/craft", "/add-materials", "/collectables/add", "/craftables/add",
-  "/language", "/import", "/refetch-list", "/add-all-materials",
+  "/language", "/import", "/refetch-list", "/add-all-materials", "/refresh-prices",
 ];
 
 const FETCHING_TOAST_MS = 30000;

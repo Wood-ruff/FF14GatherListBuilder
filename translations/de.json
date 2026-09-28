@@ -111,6 +111,8 @@
   "language_set": "Setzen",
   "clear_caches": "Cache leeren",
   "refetch_list": "Listendaten neu laden",
+  "refresh_prices": "Preise aktualisieren",
+  "refresh_prices_title": "Alle zwischengespeicherten Marktpreise neu von Universalis laden",
   "clear_caches_confirm": "Alle zwischengespeicherten Daten und Icons löschen?",
   "api_banner": "xivapi ist nicht erreichbar — die letzte Abfrage schlug fehl, Items wurden ohne Spieldaten hinzugefügt. Prüfe Internetverbindung und Firewall.",
   "modal_close": "Schließen",

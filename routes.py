@@ -590,6 +590,13 @@ def refetch_list():
     return redirect(url_for("routes.show_list", list=list_name))
 
 
+@routes.post("/refresh-prices")
+def refresh_prices():
+    """Start refetching all cached market prices, then show the current list again."""
+    threading.Thread(target=lists.refresh_market_prices, daemon=True).start()
+    return redirect(url_for("routes.show_list", list=request.form.get("list", "")))
+
+
 @routes.post("/clear-cache")
 def clear_cache():
     """Clear all cached api data, then show the current list again."""

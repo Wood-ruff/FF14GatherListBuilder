@@ -1075,6 +1075,11 @@ def get_worlds():
     return sorted(worlds, key=lambda world: world["name"])
 
 
+def refresh_market_prices():
+    """Refetch every cached market price from universalis in tight batches."""
+    return universalis.refresh_cached_prices()
+
+
 STACK_LISTING_CAP = 99
 
 

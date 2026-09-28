@@ -146,3 +146,12 @@ def test_item_and_recipe_entries_are_separate():
     assert item_cache.get_fresh_result("Iron Ore", "item") == RESULT
     assert item_cache.get_fresh_result("Iron Ore", "recipe") == recipe
     assert item_cache.load_cache()["recipe:iron ore"]["type"] == "recipe"
+
+
+def test_names_of_kind_lists_only_that_kind():
+    item_cache.store_result("66:100", {"price": 1}, "market_stats")
+    item_cache.store_result("66:100", [[1, 1]], "market_listings")
+    item_cache.store_result("66:101", [[2, 1]], "market_listings")
+    assert item_cache.names_of_kind("market_listings") == ["66:100", "66:101"]
+    assert item_cache.names_of_kind("market_stats") == ["66:100"]
+    assert item_cache.names_of_kind("ventures") == []

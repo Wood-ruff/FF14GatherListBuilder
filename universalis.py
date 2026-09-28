@@ -11,6 +11,7 @@ MARKET_URL = "https://universalis.app/api/v2"
 
 CHUNK_SIZE = 25
 OVERVIEW_CHUNK_SIZE = 100
+LISTINGS_CHUNK_SIZE = 100
 CHUNK_WORKERS = 3
 MARKET_TTL_HOURS = 3
 LISTING_LIMIT = 50
@@ -104,7 +105,7 @@ def fetch_market_listings(world_id, item_ids):
                 missing.append(item_id)
             else:
                 listings[item_id] = known
-        fetched = fetch_chunks(missing, CHUNK_SIZE,
+        fetched = fetch_chunks(missing, LISTINGS_CHUNK_SIZE,
                                lambda chunk: lookup_market_listings_with_retry(world_id, chunk))
         if fetched is None:
             return None
@@ -245,6 +246,45 @@ def build_stats(fields):
         "max_sale": max(sale_prices, default=0),
         "week_volume": int(fields.get("unitsSold", 0)),
     }
+
+
+PRICE_KIND_LOOKUPS = (
+    ("market_overview", OVERVIEW_CHUNK_SIZE, lookup_market_overview_with_retry),
+    ("market_stats", CHUNK_SIZE, lookup_market_stats_with_retry),
+    ("market_listings", LISTINGS_CHUNK_SIZE, lookup_market_listings_with_retry),
+)
+
+
+def refresh_cached_prices():
+    """Refetch every cached market price, counted as one background fetch."""
+    return item_cache.counted_fetch(refresh_all_price_kinds)
+
+
+def refresh_all_price_kinds():
+    """Run one bulk refetch pipeline per price kind and world, telling if all succeeded."""
+    complete = True
+    for kind, size, lookup in PRICE_KIND_LOOKUPS:
+        for world_id, item_ids in cached_price_worlds(kind).items():
+            if not refresh_price_kind(kind, world_id, item_ids, size, lookup):
+                complete = False
+    return complete
+
+
+def refresh_price_kind(kind, world_id, item_ids, size, lookup):
+    """Refetch the cached item ids of one price kind on one world in full chunks."""
+    with item_cache.fetch_lock(f"{kind}:{world_id}"):
+        fetched = fetch_chunks(item_ids, size, lambda chunk: lookup(world_id, chunk))
+    return fetched is not None
+
+
+def cached_price_worlds(kind):
+    """Group the cached item ids of one price kind by their world."""
+    worlds = {}
+    for name in item_cache.names_of_kind(kind):
+        world_part, _, item_part = name.partition(":")
+        if world_part.isdigit() and item_part.isdigit():
+            worlds.setdefault(int(world_part), []).append(int(item_part))
+    return worlds
 
 
 def chunked(values, size):

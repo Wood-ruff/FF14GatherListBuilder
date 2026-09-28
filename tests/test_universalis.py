@@ -283,3 +283,71 @@ def test_failed_lookups_return_none(monkeypatch):
     assert universalis.fetch_market_stats(66, [100]) is None
     assert universalis.fetch_market_overview(66, [100]) is None
     assert universalis.fetch_market_listings(66, [100]) is None
+
+
+def refresh_api(calls):
+    def responder(url, params=None, **kwargs):
+        fields = params or {}
+        calls.append((url, fields.get("listings"), fields.get("entries")))
+        if "/aggregated/" in url:
+            return FakeResponse(AGGREGATED_DATA)
+        if fields.get("entries") == 0:
+            return FakeResponse(LISTING_DATA)
+        return FakeResponse(MARKET_DATA)
+    return responder
+
+
+def test_refresh_cached_prices_refetches_fresh_entries_of_every_kind(monkeypatch):
+    monkeypatch.setattr("requests.get", refresh_api([]))
+    universalis.fetch_market_overview(66, [100])
+    universalis.fetch_market_stats(66, [100])
+    universalis.fetch_market_listings(66, [100])
+
+    calls = []
+    monkeypatch.setattr("requests.get", refresh_api(calls))
+    assert universalis.refresh_cached_prices() is True
+    assert len(calls) == 3
+    assert ("/aggregated/" in calls[0][0], calls[1][1:], calls[2][1:]) == (
+        True,
+        (0, universalis.MAX_HISTORY_ENTRIES),
+        (universalis.LISTING_LIMIT, 0),
+    )
+
+
+def test_refresh_cached_prices_batches_per_world(monkeypatch):
+    monkeypatch.setattr("requests.get", refresh_api([]))
+    universalis.fetch_market_overview(66, [100, 101])
+    universalis.fetch_market_overview(33, [100])
+
+    calls = []
+    monkeypatch.setattr("requests.get", refresh_api(calls))
+    assert universalis.refresh_cached_prices() is True
+    urls = sorted(call[0] for call in calls)
+    assert len(urls) == 2
+    assert "/aggregated/33/100" in urls[0]
+    assert "/aggregated/66/100,101" in urls[1]
+
+
+def test_refresh_cached_prices_reports_failed_pipelines(monkeypatch):
+    monkeypatch.setattr("requests.get", refresh_api([]))
+    universalis.fetch_market_overview(66, [100])
+
+    def down(url, params=None, **kwargs):
+        raise requests.RequestException("down")
+
+    monkeypatch.setattr("requests.get", down)
+    assert universalis.refresh_cached_prices() is False
+
+
+def test_refresh_cached_prices_counts_as_a_running_fetch(monkeypatch):
+    monkeypatch.setattr("requests.get", refresh_api([]))
+    universalis.fetch_market_overview(66, [100])
+    seen = {}
+
+    def observing(url, params=None, **kwargs):
+        seen["fetching"] = item_cache.fetches_running()
+        return refresh_api([])(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", observing)
+    universalis.refresh_cached_prices()
+    assert seen["fetching"] is True

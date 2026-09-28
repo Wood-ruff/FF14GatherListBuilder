@@ -447,6 +447,14 @@
     "english": "Re-fetch list data",
     "translation": ""
   },
+  "refresh_prices": {
+    "english": "Refresh prices",
+    "translation": ""
+  },
+  "refresh_prices_title": {
+    "english": "Re-fetch all cached market prices from Universalis",
+    "translation": ""
+  },
   "clear_caches_confirm": {
     "english": "Clear all cached item data and icons?",
     "translation": ""
