@@ -21,6 +21,13 @@
         </div>
         <button type="button" id="venture-yields-open" class="secondary">{{ t("open") }}</button>
       </div>
+      <div class="feature-entry">
+        <div>
+          <strong>{{ t("gathering_yields_title") }}</strong>
+          <div class="muted">{{ t("gathering_yields_desc") }}</div>
+        </div>
+        <button type="button" id="gathering-yields-open" class="secondary">{{ t("open") }}</button>
+      </div>
     </section>
 
     <div id="currency-yields-modal" class="modal" hidden>
@@ -108,9 +115,61 @@
         <button type="button" id="venture-yields-close" class="secondary">{{ t("modal_close") }}</button>
       </div>
     </div>
+    <div id="gathering-yields-modal" class="modal" hidden>
+      <div class="modal-box yields-box">
+        <h3>{{ t("gathering_yields_title") }}</h3>
+        <div class="filter-row">
+          <select id="gathering-yields-job">
+            <option value="all" selected>{{ t("gathering_yields_job_all") }}</option>
+            <option value="miner">{{ t("venture_yields_job_miner") }}</option>
+            <option value="botanist">{{ t("venture_yields_job_botanist") }}</option>
+          </select>
+          <select id="gathering-yields-world">
+            <option value="">{{ t("currency_yields_pick_world") }}</option>
+            {% for world in worlds %}
+            <option value="{{ world.id }}">{{ world.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" id="gathering-yields-minlevel" min="1" max="100"
+                 placeholder="{{ t('gathering_yields_min_level') }}" title="{{ t('gathering_yields_min_level_title') }}">
+          <input type="number" id="gathering-yields-maxlevel" min="1" max="100"
+                 placeholder="{{ t('gathering_yields_max_level') }}" title="{{ t('gathering_yields_max_level_title') }}">
+          <label class="switch" title="{{ t('gathering_yields_hide_slow_title') }}">
+            <input type="checkbox" id="gathering-yields-hideslow">
+            {{ t("gathering_yields_hide_slow") }}
+          </label>
+          <label class="switch" title="{{ t('gathering_yields_quick_title') }}">
+            <input type="checkbox" id="gathering-yields-quick">
+            {{ t("gathering_yields_quick") }}
+          </label>
+          <label class="switch" title="{{ t('gathering_yields_high_volume_title') }}">
+            <input type="checkbox" id="gathering-yields-highvolume">
+            {{ t("gathering_yields_high_volume") }}
+          </label>
+        </div>
+        <p id="gathering-yields-status" class="muted" hidden></p>
+        <table id="gathering-yields-table" hidden>
+          <thead>
+            <tr>
+              <th>{{ t("currency_yields_col_item") }}</th>
+              <th>{{ t("venture_yields_col_level") }}</th>
+              <th>{{ t("gathering_yields_col_job") }}</th>
+              <th>{{ t("currency_yields_col_price") }}</th>
+              <th>{{ t("currency_yields_col_avg") }}</th>
+              <th>{{ t("gathering_yields_col_items") }}</th>
+              <th>{{ t("gathering_yields_col_yield") }}</th>
+              <th>{{ t("currency_yields_col_volume") }}</th>
+            </tr>
+          </thead>
+          <tbody id="gathering-yields-body"></tbody>
+        </table>
+        <button type="button" id="gathering-yields-close" class="secondary">{{ t("modal_close") }}</button>
+      </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
   <script src="{{ url_for('static', filename='currency-yields.js') }}"></script>
   <script src="{{ url_for('static', filename='venture-yields.js') }}"></script>
+  <script src="{{ url_for('static', filename='gathering-yields.js') }}"></script>
 {% endblock %}

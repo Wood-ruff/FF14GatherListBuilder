@@ -1153,6 +1153,132 @@ def venture_quantity(venture, stat):
     return quantities[min(tier, len(quantities) - 1)]
 
 
+GATHERING_JOBS = ("miner", "botanist", "all")
+
+GATHERING_ITEMS_PER_RUN = 21
+UNTIMED_RUNS_PER_HOUR = 30
+EORZEA_DAY_REAL_MINUTES = 70
+GATHERING_RESULT_LIMIT = 50
+VOLUME_WARNING_SHARE = 0.7
+QUICK_GATHER_MINUTES = 10
+HIGH_VOLUME_WEEK_SALES = 2500
+
+
+def get_gathering_yields(world_id, job, min_level, max_level,
+                         hide_slow=False, quick=False, high_volume=False):
+    """Rank node items by gil per hour of own gathering on one world's market."""
+    gatherables = xivapi.fetch_gatherables()
+    if gatherables is None:
+        return None
+    marketable = universalis.fetch_marketable_ids()
+    if marketable is None:
+        return None
+    candidates = [gatherable for gatherable in gatherables
+                  if gatherable["item"] in marketable
+                  and gatherable_matches(gatherable, job, min_level, max_level)
+                  and hourly_gathering_items(gatherable) > 0]
+    overview = universalis.fetch_market_overview(world_id, sorted({g["item"] for g in candidates}))
+    if overview is None:
+        return None
+    if high_volume:
+        candidates = [g for g in candidates
+                      if overview.get(g["item"], {}).get("velocity", 0) * 7 >= HIGH_VOLUME_WEEK_SALES]
+    top = best_rough_yields(candidates, overview)
+    stats = universalis.fetch_market_stats(world_id, sorted({g["item"] for g in top}))
+    if stats is None:
+        return None
+    entries = build_gathering_entries(top, stats)
+    if high_volume:
+        entries = [entry for entry in entries
+                   if entry["week_volume"] >= HIGH_VOLUME_WEEK_SALES]
+    if hide_slow:
+        entries = [entry for entry in entries
+                   if entry["hourly_items"] <= realistic_sales(entry["week_volume"])]
+    if quick:
+        entries = [entry for entry in entries if is_quick_gather(entry)]
+        entries.sort(key=lambda entry: entry["price"], reverse=True)
+    else:
+        entries.sort(key=lambda entry: entry["yield"], reverse=True)
+    entries = entries[:GATHERING_RESULT_LIMIT]
+    names = xivapi.fetch_item_names([entry["game_id"] for entry in entries])
+    for entry in entries:
+        entry["name"] = names.get(entry["game_id"], "")
+    return entries
+
+
+def realistic_sales(volume):
+    """Sales one seller can realistically capture out of a trade volume; mirrors the JS helper."""
+    return max(0.0, VOLUME_WARNING_SHARE * volume - math.sqrt(volume))
+
+
+def quick_haul_items(entry):
+    """Items one quick trip yields: a few runs on open nodes, one visit on a timed one."""
+    if entry["timed"]:
+        return GATHERING_ITEMS_PER_RUN
+    run_minutes = 60 / UNTIMED_RUNS_PER_HOUR
+    return GATHERING_ITEMS_PER_RUN * QUICK_GATHER_MINUTES / run_minutes
+
+
+def is_quick_gather(entry):
+    """Check whether one quick trip's haul sells within about a day."""
+    return quick_haul_items(entry) <= realistic_sales(entry["week_volume"] / 7)
+
+
+def gatherable_matches(gatherable, job, min_level, max_level):
+    """Check one gatherable against the job and level window filters."""
+    if job != "all" and job not in gatherable["jobs"]:
+        return False
+    if min_level is not None and gatherable["level"] < min_level:
+        return False
+    if max_level is not None and gatherable["level"] > max_level:
+        return False
+    return True
+
+
+def hourly_gathering_items(gatherable):
+    """Return how many of the item one real hour of gathering yields."""
+    if not gatherable["timed"]:
+        return GATHERING_ITEMS_PER_RUN * UNTIMED_RUNS_PER_HOUR
+    runs_per_hour = len(gatherable["windows"]) * 60 / EORZEA_DAY_REAL_MINUTES
+    return GATHERING_ITEMS_PER_RUN * runs_per_hour
+
+
+def best_rough_yields(candidates, overview):
+    """Keep the candidates whose price and sale speed promise the best gil per hour."""
+    def rough_yield(gatherable):
+        market = overview.get(gatherable["item"], {})
+        sellable = realistic_sales(market.get("velocity", 0) * 7)
+        return market.get("price", 0) * min(hourly_gathering_items(gatherable), sellable)
+
+    ranked = sorted(candidates, key=rough_yield, reverse=True)
+    return ranked[:2 * GATHERING_RESULT_LIMIT]
+
+
+def build_gathering_entries(gatherables, stats):
+    """Build one yield row per gatherable that currently sells on the market."""
+    entries = []
+    for gatherable in gatherables:
+        market = stats.get(gatherable["item"])
+        if market is None or market["price"] <= 0 or market["week_volume"] <= 0:
+            continue
+        hourly = hourly_gathering_items(gatherable)
+        entries.append({
+            "game_id": gatherable["item"],
+            "level": gatherable["level"],
+            "stars": gatherable["stars"],
+            "jobs": gatherable["jobs"],
+            "timed": gatherable["timed"],
+            "windows": gatherable["windows"],
+            "hidden": gatherable["hidden"],
+            "hourly_items": round(hourly, 1),
+            "price": market["price"],
+            "avg_price": market["avg_price"],
+            "yield": round(market["price"] * hourly),
+            "week_volume": market["week_volume"],
+        })
+    return entries
+
+
 def build_yield_entries(offers, stats):
     """Build one yield row per offer that currently sells on the market."""
     entries = []

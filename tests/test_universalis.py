@@ -35,11 +35,23 @@ MARKET_DATA = {
 }
 
 
+AGGREGATED_DATA = {
+    "results": [
+        {"itemId": 100, "nq": {"minListing": {"world": {"price": 500}, "dc": {"price": 20}},
+                               "dailySaleVelocity": {"world": {"quantity": 93.9}}}},
+        {"itemId": 101, "nq": {"minListing": {}, "dailySaleVelocity": {}}},
+    ],
+    "failedItems": [102],
+}
+
+
 def market_api(url, params=None, **kwargs):
     if url.endswith("/worlds"):
         return FakeResponse([{"id": 66, "name": "Odin"}, {"id": 33, "name": "Twintania"}])
     if url.endswith("/marketable"):
         return FakeResponse([100, 101])
+    if "/aggregated/" in url:
+        return FakeResponse(AGGREGATED_DATA)
     return FakeResponse(MARKET_DATA)
 
 
@@ -140,6 +152,60 @@ def test_market_stats_retry_a_failed_chunk_once(monkeypatch):
     assert attempts["count"] == 2
 
 
+def test_market_overview_reads_world_price_and_velocity(monkeypatch):
+    seen = {}
+
+    def capture(url, params=None, **kwargs):
+        seen["url"] = url
+        return market_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", capture)
+    overview = universalis.fetch_market_overview(66, [100, 101, 102])
+    assert "/aggregated/66/" in seen["url"]
+    assert overview[100] == {"price": 500, "velocity": 93.9}
+    assert overview[101] == {"price": 0, "velocity": 0.0}
+    assert overview[102] == {"price": 0, "velocity": 0.0}
+
+
+def test_market_overview_has_its_own_cache_kind(monkeypatch):
+    monkeypatch.setattr("requests.get", market_api)
+    universalis.fetch_market_overview(66, [100])
+    cache = item_cache.load_cache()
+    assert cache["market_overview:66:100"]["result"] == {"price": 500, "velocity": 93.9}
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert universalis.fetch_market_overview(66, [100])[100]["price"] == 500
+
+
+def test_market_overview_retry_a_failed_chunk_once(monkeypatch):
+    attempts = {"count": 0}
+
+    def flaky(url, params=None, **kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise requests.RequestException("504")
+        return market_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", flaky)
+    assert universalis.fetch_market_overview(66, [100])[100]["price"] == 500
+    assert attempts["count"] == 2
+
+
+def test_market_overview_parallel_chunks_collect_all_results(monkeypatch):
+    monkeypatch.setattr("universalis.OVERVIEW_CHUNK_SIZE", 1)
+    monkeypatch.setattr("requests.get", market_api)
+    overview = universalis.fetch_market_overview(66, [100, 101, 102])
+    assert set(overview) == {100, 101, 102}
+    assert overview[100] == {"price": 500, "velocity": 93.9}
+
+
+def test_market_stats_parallel_chunks_collect_all_results(monkeypatch):
+    monkeypatch.setattr("universalis.CHUNK_SIZE", 1)
+    monkeypatch.setattr("requests.get", market_api)
+    stats = universalis.fetch_market_stats(66, [100, 101])
+    assert stats[100]["price"] == 500
+    assert stats[101]["price"] == 0
+
+
 def test_failed_lookups_return_none(monkeypatch):
     def down(url, params=None, **kwargs):
         raise requests.RequestException("down")
@@ -148,3 +214,4 @@ def test_failed_lookups_return_none(monkeypatch):
     assert universalis.fetch_worlds() is None
     assert universalis.fetch_marketable_ids() is None
     assert universalis.fetch_market_stats(66, [100]) is None
+    assert universalis.fetch_market_overview(66, [100]) is None

@@ -21,6 +21,7 @@ CRAFTABLES = {}
 MATERIAL_SOURCES = {}
 CURRENCY_SHOP = {}
 VENTURES = []
+GATHERABLES = []
 TOMESTONES = {}
 DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
@@ -55,6 +56,7 @@ def clear_cache():
     MATERIAL_SOURCES.clear()
     CURRENCY_SHOP.clear()
     VENTURES.clear()
+    GATHERABLES.clear()
     TOMESTONES.clear()
     DOWNLOADED_ICONS.clear()
     item_cache.clear()
@@ -1411,6 +1413,119 @@ def job_key_from_flags(flags):
     if flags.get("FSH"):
         return "fisher"
     return "battle"
+
+
+GATHERING_ITEM_FIELDS = ("Item@as(raw),IsHidden,"
+                         "GatheringItemLevel.GatheringItemLevel,GatheringItemLevel.Stars")
+GATHERABLE_BASE_FIELDS = "Item@as(raw),GatheringType@as(raw)"
+GATHERABLE_TRANSIENT_FIELDS = TRANSIENT_FIELDS + ",GatheringRarePopTimeTable@as(raw)"
+GATHERING_TYPE_JOBS = {0: "miner", 1: "miner", 2: "botanist", 3: "botanist"}
+
+
+def fetch_gatherables():
+    """Return every MIN/BTN node item with its spawn windows from memory, cache, or api."""
+    with item_cache.fetch_lock("gatherables"):
+        if GATHERABLES:
+            return list(GATHERABLES)
+        data = item_cache.get_fresh_result("all", "gatherables")
+        if data and "windows" not in data[0]:
+            data = None
+        if data is None:
+            data = item_cache.counted_fetch(lookup_gatherables)
+            if data is not None:
+                item_cache.store_result("all", data, "gatherables")
+        if data is not None:
+            GATHERABLES.extend(data)
+        return data
+
+
+def lookup_gatherables():
+    """Collect every gathering item with its jobs, level and spawn windows."""
+    items = search_sheet_rows("GatheringItem", "Item>0", GATHERING_ITEM_FIELDS)
+    if items is None:
+        return None
+    bases = sheet_rows("GatheringPointBase", GATHERABLE_BASE_FIELDS)
+    if bases is None:
+        return None
+    points = sheet_rows("GatheringPoint", "GatheringPointBase@as(raw)")
+    if points is None:
+        return None
+    transients = sheet_rows("GatheringPointTransient", GATHERABLE_TRANSIENT_FIELDS)
+    if transients is None:
+        return None
+    return build_gatherables(items, bases, points, transients)
+
+
+def build_gatherables(items, bases, points, transients):
+    """Build the gatherable entries from the four fetched gathering sheets."""
+    pointed = {fields["GatheringPointBase@as(raw)"] for fields in points.values()}
+    timed_bases = timed_base_ids(points, transients)
+    windows = base_spawn_windows(points, transients)
+    members = base_memberships(bases)
+    gatherables = []
+    seen = set()
+    for row in items:
+        entry = build_gatherable(row, bases, members, pointed, timed_bases, windows)
+        if entry is not None and entry["item"] not in seen:
+            seen.add(entry["item"])
+            gatherables.append(entry)
+    return gatherables
+
+
+def base_memberships(bases):
+    """Map each gathering item id to the base ids whose nodes carry it."""
+    members = {}
+    for base_id, fields in bases.items():
+        for gi_id in fields[RAW_ITEM_FIELD]:
+            if gi_id > 0:
+                members.setdefault(gi_id, []).append(base_id)
+    return members
+
+
+def base_spawn_windows(points, transients):
+    """Collect the distinct spawn windows of each base across its points."""
+    windows = {}
+    for point_id, fields in points.items():
+        base_id = fields["GatheringPointBase@as(raw)"]
+        transient = transients.get(point_id)
+        if base_id <= 0 or transient is None:
+            continue
+        merged = windows.setdefault(base_id, [])
+        for window in rare_pop_times(transient) + ephemeral_times(transient):
+            if window not in merged:
+                merged.append(window)
+    return windows
+
+
+def build_gatherable(row, bases, members, pointed, timed_bases, windows):
+    """Build one gatherable entry, or None when no live MIN/BTN node has the item."""
+    base_ids = [base_id for base_id in members.get(row["row_id"], [])
+                if base_id in pointed
+                and bases[base_id]["GatheringType@as(raw)"] in GATHERING_TYPE_JOBS]
+    if not base_ids:
+        return None
+    level = row["fields"]["GatheringItemLevel"]["fields"]
+    timed = all(base_id in timed_bases for base_id in base_ids)
+    return {
+        "item": row["fields"][RAW_ITEM_FIELD],
+        "level": level["GatheringItemLevel"],
+        "stars": level["Stars"],
+        "hidden": row["fields"]["IsHidden"],
+        "jobs": sorted({GATHERING_TYPE_JOBS[bases[base_id]["GatheringType@as(raw)"]]
+                        for base_id in base_ids}),
+        "timed": timed,
+        "windows": item_spawn_windows(base_ids, windows) if timed else [],
+    }
+
+
+def item_spawn_windows(base_ids, windows):
+    """Merge the distinct spawn windows of the given bases."""
+    merged = []
+    for base_id in base_ids:
+        for window in windows.get(base_id, []):
+            if window not in merged:
+                merged.append(window)
+    return merged
 
 
 def search_sheet_rows(sheet, query, fields):

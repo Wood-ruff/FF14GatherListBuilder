@@ -20,6 +20,9 @@ const PINNABLE_MODALS = {
   "venture-yields-modal": function () {
     openVentureYields();
   },
+  "gathering-yields-modal": function () {
+    openGatheringYields();
+  },
 };
 
 const DRAG_HANDLE_HEIGHT = 48;

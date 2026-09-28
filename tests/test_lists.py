@@ -887,6 +887,164 @@ def test_venture_yields_fail_without_market_data(monkeypatch):
     assert lists.get_venture_yields(66, "miner", None, None) is None
 
 
+def fake_gatherables():
+    return [
+        {"item": 100, "level": 10, "stars": 0, "hidden": False, "jobs": ["miner"],
+         "timed": False, "windows": []},
+        {"item": 101, "level": 90, "stars": 2, "hidden": True, "jobs": ["miner"],
+         "timed": True, "windows": [{"start": 720, "duration": 120}, {"start": 60, "duration": 120}]},
+        {"item": 102, "level": 50, "stars": 0, "hidden": False, "jobs": ["botanist"],
+         "timed": False, "windows": []},
+        {"item": 103, "level": 60, "stars": 0, "hidden": False, "jobs": ["miner"],
+         "timed": True, "windows": []},
+        {"item": 104, "level": 10, "stars": 0, "hidden": False, "jobs": ["miner"],
+         "timed": False, "windows": []},
+        {"item": 105, "level": 10, "stars": 0, "hidden": False, "jobs": ["miner"],
+         "timed": False, "windows": []},
+    ]
+
+
+GATHERING_OVERVIEW = {
+    100: {"price": 10, "velocity": 300.0},
+    101: {"price": 100, "velocity": 10.0},
+    102: {"price": 5, "velocity": 60.0},
+    105: {"price": 10000, "velocity": 0.0},
+}
+
+GATHERING_STATS = {
+    100: {"price": 10, "avg_price": 12, "min_sale": 9, "max_sale": 14, "week_volume": 2000},
+    101: {"price": 100, "avg_price": 110, "min_sale": 90, "max_sale": 130, "week_volume": 50},
+    102: {"price": 5, "avg_price": 6, "min_sale": 4, "max_sale": 8, "week_volume": 400},
+    105: {"price": 10000, "avg_price": 9000, "min_sale": 0, "max_sale": 0, "week_volume": 0},
+}
+
+
+def stub_gathering_market(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_gatherables", fake_gatherables)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: {100, 101, 102, 103, 105})
+    monkeypatch.setattr("universalis.fetch_market_overview",
+                        lambda world, ids: {item_id: GATHERING_OVERVIEW[item_id] for item_id in ids})
+    monkeypatch.setattr("universalis.fetch_market_stats",
+                        lambda world, ids: {item_id: GATHERING_STATS[item_id] for item_id in ids})
+    monkeypatch.setattr("xivapi.fetch_item_names",
+                        lambda ids: {item_id: f"Item {item_id}" for item_id in ids})
+
+
+def test_gathering_yields_rank_by_gil_per_hour(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    entries = lists.get_gathering_yields(66, "miner", None, None)
+    assert [entry["game_id"] for entry in entries] == [100, 101]
+    assert entries[0]["hourly_items"] == 630
+    assert entries[0]["yield"] == 6300
+    assert entries[0]["name"] == "Item 100"
+    assert entries[1]["hourly_items"] == 36.0
+    assert entries[1]["yield"] == 3600
+    assert entries[1]["timed"] is True
+    assert entries[1]["windows"] == [{"start": 720, "duration": 120}, {"start": 60, "duration": 120}]
+    assert entries[1]["hidden"] is True
+    assert entries[1]["stars"] == 2
+
+
+def test_gathering_yields_filter_by_job_and_level(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    all_entries = lists.get_gathering_yields(66, "all", None, None)
+    assert [entry["game_id"] for entry in all_entries] == [100, 101, 102]
+    leveled = lists.get_gathering_yields(66, "all", 40, 60)
+    assert [entry["game_id"] for entry in leveled] == [102]
+
+
+def test_gathering_yields_request_full_stats_only_for_top_ids(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    monkeypatch.setattr("lists.GATHERING_RESULT_LIMIT", 1)
+    requested = {}
+
+    def capture_stats(world, ids):
+        requested["ids"] = ids
+        return {item_id: GATHERING_STATS[item_id] for item_id in ids}
+
+    monkeypatch.setattr("universalis.fetch_market_stats", capture_stats)
+    entries = lists.get_gathering_yields(66, "all", None, None)
+    assert requested["ids"] == [100, 101]
+    assert [entry["game_id"] for entry in entries] == [100]
+
+
+def test_gathering_yields_skip_windowless_timed_and_unmarketable_items(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    entries = lists.get_gathering_yields(66, "miner", None, None)
+    ids = [entry["game_id"] for entry in entries]
+    assert 103 not in ids
+    assert 104 not in ids
+
+
+def test_gathering_yields_exclude_items_nobody_buys(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    entries = lists.get_gathering_yields(66, "miner", None, None)
+    assert 105 not in [entry["game_id"] for entry in entries]
+
+
+def test_dead_markets_do_not_crowd_out_the_stats_pool(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    monkeypatch.setattr("lists.GATHERING_RESULT_LIMIT", 1)
+    requested = {}
+
+    def capture_stats(world, ids):
+        requested["ids"] = ids
+        return {item_id: GATHERING_STATS[item_id] for item_id in ids}
+
+    monkeypatch.setattr("universalis.fetch_market_stats", capture_stats)
+    lists.get_gathering_yields(66, "miner", None, None)
+    assert 105 not in requested["ids"]
+
+
+def test_gathering_yields_hide_slow_sellers_on_demand(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    with_slow = lists.get_gathering_yields(66, "miner", None, None)
+    assert [entry["game_id"] for entry in with_slow] == [100, 101]
+    fast_only = lists.get_gathering_yields(66, "miner", None, None, True)
+    assert [entry["game_id"] for entry in fast_only] == [100]
+
+
+def test_quick_gathers_keep_fast_sellers_and_rank_by_price(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    quick = lists.get_gathering_yields(66, "miner", None, None, False, True)
+    assert [entry["game_id"] for entry in quick] == [100]
+
+    rich_stats = dict(GATHERING_STATS)
+    rich_stats[101] = {"price": 100, "avg_price": 110, "min_sale": 90, "max_sale": 130,
+                       "week_volume": 3000}
+    monkeypatch.setattr("universalis.fetch_market_stats",
+                        lambda world, ids: {item_id: rich_stats[item_id] for item_id in ids})
+    quick = lists.get_gathering_yields(66, "miner", None, None, False, True)
+    assert [entry["game_id"] for entry in quick] == [101, 100]
+
+
+def test_high_volume_toggle_keeps_only_busy_markets(monkeypatch):
+    stub_gathering_market(monkeypatch)
+    busy_overview = dict(GATHERING_OVERVIEW)
+    busy_overview[100] = {"price": 10, "velocity": 400.0}
+    monkeypatch.setattr("universalis.fetch_market_overview",
+                        lambda world, ids: {item_id: busy_overview[item_id] for item_id in ids})
+    busy_stats = dict(GATHERING_STATS)
+    busy_stats[100] = {"price": 10, "avg_price": 12, "min_sale": 9, "max_sale": 14,
+                       "week_volume": 2600}
+    requested = {}
+
+    def capture_stats(world, ids):
+        requested["ids"] = ids
+        return {item_id: busy_stats[item_id] for item_id in ids}
+
+    monkeypatch.setattr("universalis.fetch_market_stats", capture_stats)
+    entries = lists.get_gathering_yields(66, "all", None, None, False, False, True)
+    assert [entry["game_id"] for entry in entries] == [100]
+    assert requested["ids"] == [100]
+
+
+def test_gathering_yields_fail_without_market_data(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_gatherables", fake_gatherables)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: None)
+    assert lists.get_gathering_yields(66, "all", None, None) is None
+
+
 def test_worlds_are_sorted_by_name(monkeypatch):
     worlds = [{"id": 66, "name": "Odin"}, {"id": 33, "name": "Twintania"}, {"id": 39, "name": "Alpha"}]
     monkeypatch.setattr("universalis.fetch_worlds", lambda: worlds)

@@ -307,6 +307,86 @@
     "english": "No sellable venture rewards found.",
     "translation": ""
   },
+  "gathering_yields_title": {
+    "english": "Gathering yields",
+    "translation": ""
+  },
+  "gathering_yields_desc": {
+    "english": "Which node items your own gathering turns into the most gil per hour.",
+    "translation": ""
+  },
+  "gathering_yields_job_all": {
+    "english": "All gatherers",
+    "translation": ""
+  },
+  "gathering_yields_min_level": {
+    "english": "Min level…",
+    "translation": ""
+  },
+  "gathering_yields_min_level_title": {
+    "english": "Only items gathered at this level or above",
+    "translation": ""
+  },
+  "gathering_yields_max_level": {
+    "english": "Max level…",
+    "translation": ""
+  },
+  "gathering_yields_max_level_title": {
+    "english": "Only items gathered up to this level",
+    "translation": ""
+  },
+  "gathering_yields_col_job": {
+    "english": "Job",
+    "translation": ""
+  },
+  "gathering_yields_col_items": {
+    "english": "Items / hour",
+    "translation": ""
+  },
+  "gathering_yields_col_yield": {
+    "english": "Gil per hour",
+    "translation": ""
+  },
+  "gathering_yields_hide_slow": {
+    "english": "Hide slow sellers",
+    "translation": ""
+  },
+  "gathering_yields_hide_slow_title": {
+    "english": "Only items whose weekly trade volume absorbs at least one hour of gathering",
+    "translation": ""
+  },
+  "gathering_yields_empty": {
+    "english": "No sellable node items found.",
+    "translation": ""
+  },
+  "gathering_yields_high_volume": {
+    "english": "Busy markets only",
+    "translation": ""
+  },
+  "gathering_yields_high_volume_title": {
+    "english": "Only items selling at least 2500 units in 7 days",
+    "translation": ""
+  },
+  "gathering_yields_quick": {
+    "english": "Quick gathers",
+    "translation": ""
+  },
+  "gathering_yields_quick_title": {
+    "english": "Only items where one quick trip sells within about a day — sorted by item price",
+    "translation": ""
+  },
+  "gathering_yields_timed": {
+    "english": "Timed node — click for its current spawn times",
+    "translation": ""
+  },
+  "gathering_yields_hidden": {
+    "english": "Hidden item — needs its folklore or perception unlock to appear",
+    "translation": ""
+  },
+  "gathering_yields_volume_warning": {
+    "english": "Unlikely to sell within 7 days — one hour of gathering exceeds what this trade volume realistically absorbs",
+    "translation": ""
+  },
   "pin_popup": {
     "english": "Pin popup — it stays open and the page stays usable",
     "translation": ""

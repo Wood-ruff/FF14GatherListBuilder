@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -9,6 +10,8 @@ MARKETABLE_URL = "https://universalis.app/api/v2/marketable"
 MARKET_URL = "https://universalis.app/api/v2"
 
 CHUNK_SIZE = 25
+OVERVIEW_CHUNK_SIZE = 100
+CHUNK_WORKERS = 3
 MARKET_TTL_HOURS = 3
 HISTORY_WINDOW_SECONDS = 7 * 24 * 3600
 MAX_HISTORY_ENTRIES = 100
@@ -56,12 +59,47 @@ def fetch_market_stats(world_id, item_ids):
                 missing.append(item_id)
             else:
                 stats[item_id] = known
-        for chunk in chunked(missing, CHUNK_SIZE):
-            fetched = lookup_market_stats_with_retry(world_id, chunk)
+        fetched = fetch_chunks(missing, CHUNK_SIZE,
+                               lambda chunk: lookup_market_stats_with_retry(world_id, chunk))
+        if fetched is None:
+            return None
+        stats.update(fetched)
+        return stats
+
+
+def fetch_market_overview(world_id, item_ids):
+    """Return the lowest price and daily sale speed per item id, cached for a few hours."""
+    with item_cache.fetch_lock(f"market_overview:{world_id}"):
+        cached = item_cache.get_fresh_results(
+            [stats_key(world_id, item_id) for item_id in item_ids], "market_overview", MARKET_TTL_HOURS
+        )
+        overview = {}
+        missing = []
+        for item_id in item_ids:
+            known = cached.get(stats_key(world_id, item_id))
+            if known is None or "price" not in known or "velocity" not in known:
+                missing.append(item_id)
+            else:
+                overview[item_id] = known
+        fetched = fetch_chunks(missing, OVERVIEW_CHUNK_SIZE,
+                               lambda chunk: lookup_market_overview_with_retry(world_id, chunk))
+        if fetched is None:
+            return None
+        overview.update(fetched)
+        return overview
+
+
+def fetch_chunks(item_ids, size, lookup_chunk):
+    """Fetch the ids in parallel chunks and merge the results, None when one fails."""
+    if not item_ids:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=CHUNK_WORKERS) as pool:
+        for fetched in pool.map(lookup_chunk, chunked(item_ids, size)):
             if fetched is None:
                 return None
-            stats.update(fetched)
-        return stats
+            results.update(fetched)
+    return results
 
 
 def lookup_market_stats_with_retry(world_id, item_ids):
@@ -70,6 +108,40 @@ def lookup_market_stats_with_retry(world_id, item_ids):
     if fetched is None:
         fetched = lookup_market_stats(world_id, item_ids)
     return fetched
+
+
+def lookup_market_overview_with_retry(world_id, item_ids):
+    """Fetch one chunk of market overviews, trying a second time when the api hiccups."""
+    fetched = lookup_market_overview(world_id, item_ids)
+    if fetched is None:
+        fetched = lookup_market_overview(world_id, item_ids)
+    return fetched
+
+
+def lookup_market_overview(world_id, item_ids):
+    """Fetch price and sale speed of up to one chunk of items in one aggregated call."""
+    joined = ",".join(str(item_id) for item_id in item_ids)
+    data = get_json(f"{MARKET_URL}/aggregated/{world_id}/{joined}", None)
+    if data is None:
+        return None
+    rows = {row["itemId"]: row for row in data.get("results", [])}
+    overview = {}
+    for item_id in item_ids:
+        overview[item_id] = build_overview(rows.get(item_id))
+    item_cache.store_results(
+        {stats_key(world_id, item_id): entry for item_id, entry in overview.items()}, "market_overview"
+    )
+    return overview
+
+
+def build_overview(row):
+    """Reduce one aggregated market row to its world price and daily sale speed."""
+    if row is None:
+        return {"price": 0, "velocity": 0.0}
+    fields = row.get("nq", {})
+    price = fields.get("minListing", {}).get("world", {}).get("price", 0)
+    velocity = fields.get("dailySaleVelocity", {}).get("world", {}).get("quantity", 0)
+    return {"price": int(price), "velocity": round(float(velocity), 1)}
 
 
 def stats_key(world_id, item_id):

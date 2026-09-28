@@ -22,6 +22,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.MATERIAL_SOURCES.clear()
     xivapi.CURRENCY_SHOP.clear()
     xivapi.VENTURES.clear()
+    xivapi.GATHERABLES.clear()
     xivapi.TOMESTONES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
@@ -802,6 +803,99 @@ def test_ventures_are_cached(monkeypatch):
     monkeypatch.setattr("requests.get", no_more_calls)
     xivapi.VENTURES.clear()
     assert xivapi.fetch_ventures()[0]["item"] == 5111
+
+
+GATHERABLE_ITEM_ROWS = [
+    {"row_id": 10, "fields": {"Item@as(raw)": 5111, "IsHidden": False,
+                              "GatheringItemLevel": {"fields": {"GatheringItemLevel": 60, "Stars": 0}}}},
+    {"row_id": 11, "fields": {"Item@as(raw)": 6222, "IsHidden": True,
+                              "GatheringItemLevel": {"fields": {"GatheringItemLevel": 80, "Stars": 2}}}},
+    {"row_id": 12, "fields": {"Item@as(raw)": 7333, "IsHidden": False,
+                              "GatheringItemLevel": {"fields": {"GatheringItemLevel": 50, "Stars": 1}}}},
+    {"row_id": 13, "fields": {"Item@as(raw)": 8444, "IsHidden": False,
+                              "GatheringItemLevel": {"fields": {"GatheringItemLevel": 70, "Stars": 0}}}},
+    {"row_id": 14, "fields": {"Item@as(raw)": 9555, "IsHidden": False,
+                              "GatheringItemLevel": {"fields": {"GatheringItemLevel": 30, "Stars": 0}}}},
+]
+
+NO_WINDOW_TRANSIENT = {
+    "EphemeralStartTime": xivapi.NO_TIME, "EphemeralEndTime": xivapi.NO_TIME,
+    "GatheringRarePopTimeTable@as(raw)": 0,
+    "GatheringRarePopTimeTable": {"fields": {"StartTime": [], "Duration": []}},
+}
+
+TIMED_TRANSIENT = {
+    "EphemeralStartTime": xivapi.NO_TIME, "EphemeralEndTime": xivapi.NO_TIME,
+    "GatheringRarePopTimeTable@as(raw)": 7,
+    "GatheringRarePopTimeTable": {"fields": {"StartTime": [1200], "Duration": [200]}},
+}
+
+ALL_NO_TIME_TRANSIENT = {
+    "EphemeralStartTime": xivapi.NO_TIME, "EphemeralEndTime": xivapi.NO_TIME,
+    "GatheringRarePopTimeTable@as(raw)": 9,
+    "GatheringRarePopTimeTable": {"fields": {"StartTime": [xivapi.NO_TIME, xivapi.NO_TIME],
+                                             "Duration": [200, 200]}},
+}
+
+
+def gatherables_api(url, params=None, **kwargs):
+    if url == xivapi.SEARCH_URL:
+        assert params["query"] == "Item>0"
+        return FakeResponse({"results": GATHERABLE_ITEM_ROWS})
+    if url.endswith("/GatheringPointBase"):
+        return FakeResponse({"rows": [
+            {"row_id": 500, "fields": {"Item@as(raw)": [10], "GatheringType@as(raw)": 0}},
+            {"row_id": 501, "fields": {"Item@as(raw)": [11], "GatheringType@as(raw)": 1}},
+            {"row_id": 502, "fields": {"Item@as(raw)": [10], "GatheringType@as(raw)": 2}},
+            {"row_id": 503, "fields": {"Item@as(raw)": [12], "GatheringType@as(raw)": 3}},
+            {"row_id": 504, "fields": {"Item@as(raw)": [13], "GatheringType@as(raw)": 4}},
+            {"row_id": 505, "fields": {"Item@as(raw)": [14], "GatheringType@as(raw)": 0}},
+        ]})
+    if url.endswith("/GatheringPointTransient"):
+        return FakeResponse({"rows": [
+            {"row_id": 5000, "fields": NO_WINDOW_TRANSIENT},
+            {"row_id": 5020, "fields": NO_WINDOW_TRANSIENT},
+            {"row_id": 5011, "fields": TIMED_TRANSIENT},
+            {"row_id": 5012, "fields": TIMED_TRANSIENT},
+            {"row_id": 5030, "fields": ALL_NO_TIME_TRANSIENT},
+        ]})
+    return FakeResponse({"rows": [
+        {"row_id": 5000, "fields": {"GatheringPointBase@as(raw)": 500}},
+        {"row_id": 5020, "fields": {"GatheringPointBase@as(raw)": 502}},
+        {"row_id": 5011, "fields": {"GatheringPointBase@as(raw)": 501}},
+        {"row_id": 5012, "fields": {"GatheringPointBase@as(raw)": 501}},
+        {"row_id": 5030, "fields": {"GatheringPointBase@as(raw)": 503}},
+    ]})
+
+
+def test_fetch_gatherables_builds_item_entries(monkeypatch):
+    monkeypatch.setattr("requests.get", gatherables_api)
+    assert xivapi.fetch_gatherables() == [
+        {"item": 5111, "level": 60, "stars": 0, "hidden": False,
+         "jobs": ["botanist", "miner"], "timed": False, "windows": []},
+        {"item": 6222, "level": 80, "stars": 2, "hidden": True,
+         "jobs": ["miner"], "timed": True, "windows": [{"start": 720, "duration": 120}]},
+        {"item": 7333, "level": 50, "stars": 1, "hidden": False,
+         "jobs": ["botanist"], "timed": True, "windows": []},
+    ]
+
+
+def test_gatherables_are_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", gatherables_api)
+    xivapi.fetch_gatherables()
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.GATHERABLES.clear()
+    assert xivapi.fetch_gatherables()[0]["item"] == 5111
+
+
+def test_gatherables_with_old_shape_are_refetched(monkeypatch):
+    monkeypatch.setattr("requests.get", gatherables_api)
+    item_cache.store_result("all", [{"item": 5111, "timed": False}], "gatherables")
+    assert xivapi.fetch_gatherables()[1]["windows"] == [{"start": 720, "duration": 120}]
 
 
 def recipe_batch_api(url, params=None, **kwargs):

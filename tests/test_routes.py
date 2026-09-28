@@ -506,6 +506,30 @@ def test_venture_yields_endpoint_rejects_bad_params(client):
     assert client.get("/venture-yields?world=x&job=miner").get_json() is None
 
 
+def test_gathering_yields_endpoint_returns_entries(client, monkeypatch):
+    entries = [{"game_id": 100, "name": "Thing", "level": 60, "stars": 2, "jobs": ["miner"],
+                "timed": True, "hidden": False, "hourly_items": 36.0, "price": 500,
+                "avg_price": 480, "yield": 18000, "week_volume": 70}]
+    monkeypatch.setattr("lists.get_gathering_yields",
+                        lambda world, job, min_level, max_level, hide_slow, quick, high_volume: entries)
+    assert client.get(
+        "/gathering-yields?world=66&job=miner&minlevel=1&maxlevel=100&hideslow=1&quick=1&highvolume=1"
+    ).get_json() == entries
+
+
+def test_gathering_yields_endpoint_rejects_bad_params(client):
+    assert client.get("/gathering-yields?world=66&job=fisher").get_json() is None
+    assert client.get("/gathering-yields?world=x&job=miner").get_json() is None
+
+
+def test_quick_buck_shows_gathering_yields_modal(client):
+    page = client.get("/quick-buck").get_data(as_text=True)
+    assert 'id="gathering-yields-modal"' in page
+    assert 'id="gathering-yields-job"' in page
+    assert 'id="gathering-yields-minlevel"' in page
+    assert 'id="gathering-yields-maxlevel"' in page
+
+
 def test_quick_buck_tab_is_linked_in_navigation(client):
     page = client.get("/").get_data(as_text=True)
     assert 'href="/quick-buck?list="' in page

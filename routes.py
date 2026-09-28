@@ -319,6 +319,26 @@ def venture_yields():
     ))
 
 
+@routes.get("/gathering-yields")
+def gathering_yields():
+    """Return the best node items to gather for gil on one world as JSON."""
+    world = request.args.get("world", "")
+    job = request.args.get("job", "")
+    min_level = request.args.get("minlevel", "").strip()
+    max_level = request.args.get("maxlevel", "").strip()
+    if not world.isdigit() or job not in lists.GATHERING_JOBS:
+        return jsonify(None)
+    return jsonify(lists.get_gathering_yields(
+        int(world),
+        job,
+        int(min_level) if min_level.isdigit() else None,
+        int(max_level) if max_level.isdigit() else None,
+        request.args.get("hideslow", "") == "1",
+        request.args.get("quick", "") == "1",
+        request.args.get("highvolume", "") == "1",
+    ))
+
+
 @routes.get("/suggest")
 def suggest_items():
     """Return item name suggestions for a partial search as JSON."""
