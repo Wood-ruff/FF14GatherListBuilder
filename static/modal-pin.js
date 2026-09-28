@@ -17,6 +17,9 @@ const PINNABLE_MODALS = {
   "currency-yields-modal": function () {
     openCurrencyYields();
   },
+  "venture-yields-modal": function () {
+    openVentureYields();
+  },
 };
 
 const DRAG_HANDLE_HEIGHT = 48;

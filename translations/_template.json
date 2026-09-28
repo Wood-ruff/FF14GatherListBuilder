@@ -251,6 +251,62 @@
     "english": "Unlikely to sell within 7 days — planned amount exceeds what this trade volume realistically absorbs",
     "translation": ""
   },
+  "venture_yields_title": {
+    "english": "Venture yields",
+    "translation": ""
+  },
+  "venture_yields_desc": {
+    "english": "Which retainer venture brings the most gil, based on your server's market.",
+    "translation": ""
+  },
+  "venture_yields_pick_job": {
+    "english": "Retainer class…",
+    "translation": ""
+  },
+  "venture_yields_job_battle": {
+    "english": "Battle (DoW/DoM)",
+    "translation": ""
+  },
+  "venture_yields_job_miner": {
+    "english": "Miner",
+    "translation": ""
+  },
+  "venture_yields_job_botanist": {
+    "english": "Botanist",
+    "translation": ""
+  },
+  "venture_yields_job_fisher": {
+    "english": "Fisher",
+    "translation": ""
+  },
+  "venture_yields_level": {
+    "english": "Retainer level…",
+    "translation": ""
+  },
+  "venture_yields_level_title": {
+    "english": "Only ventures up to this retainer level",
+    "translation": ""
+  },
+  "venture_yields_stat": {
+    "english": "iLvl / Perception…",
+    "translation": ""
+  },
+  "venture_yields_stat_title": {
+    "english": "Retainer item level (battle) or perception (gatherer) — empty assumes the best reward tier",
+    "translation": ""
+  },
+  "venture_yields_col_level": {
+    "english": "Lv",
+    "translation": ""
+  },
+  "venture_yields_col_yield": {
+    "english": "Gil per venture",
+    "translation": ""
+  },
+  "venture_yields_empty": {
+    "english": "No sellable venture rewards found.",
+    "translation": ""
+  },
   "pin_popup": {
     "english": "Pin popup — it stays open and the page stays usable",
     "translation": ""

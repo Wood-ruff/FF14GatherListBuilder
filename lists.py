@@ -1043,6 +1043,63 @@ def get_currency_yields(currency_id, world_id):
     return entries
 
 
+VENTURE_JOBS = ("battle", "miner", "botanist", "fisher")
+
+
+def get_venture_yields(world_id, job, level, stat):
+    """Rank retainer ventures by gil per venture on one world's market."""
+    ventures = xivapi.fetch_ventures()
+    if ventures is None:
+        return None
+    marketable = universalis.fetch_marketable_ids()
+    if marketable is None:
+        return None
+    candidates = [venture for venture in ventures
+                  if venture["job"] == job and venture["item"] in marketable
+                  and (level is None or venture["level"] <= level)]
+    stats = universalis.fetch_market_stats(world_id, sorted({v["item"] for v in candidates}))
+    if stats is None:
+        return None
+    entries = build_venture_entries(candidates, stats, stat)
+    entries.sort(key=lambda entry: entry["yield"], reverse=True)
+    entries = entries[:YIELD_RESULT_LIMIT]
+    names = xivapi.fetch_item_names([entry["game_id"] for entry in entries])
+    for entry in entries:
+        entry["name"] = names.get(entry["game_id"], "")
+    return entries
+
+
+def build_venture_entries(ventures, stats, stat):
+    """Build one yield row per venture whose reward currently sells on the market."""
+    entries = []
+    for venture in ventures:
+        market = stats.get(venture["item"])
+        if market is None or market["price"] <= 0:
+            continue
+        quantity = venture_quantity(venture, stat)
+        entries.append({
+            "game_id": venture["item"],
+            "level": venture["level"],
+            "quantity": quantity,
+            "price": market["price"],
+            "avg_price": market["avg_price"],
+            "min_sale": market["min_sale"],
+            "max_sale": market["max_sale"],
+            "yield": round(market["price"] * quantity / venture["cost"], 1),
+            "week_volume": market["week_volume"],
+        })
+    return entries
+
+
+def venture_quantity(venture, stat):
+    """Return the reward amount of one venture at the retainer's stat tier."""
+    quantities = venture["quantities"]
+    if stat is None:
+        return quantities[-1]
+    tier = sum(1 for threshold in venture["breakpoints"] if threshold <= stat)
+    return quantities[min(tier, len(quantities) - 1)]
+
+
 def build_yield_entries(offers, stats):
     """Build one yield row per offer that currently sells on the market."""
     entries = []

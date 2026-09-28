@@ -296,6 +296,23 @@ def item_sources():
     return jsonify(lists.get_item_sources(list_name, int(item_id)))
 
 
+@routes.get("/venture-yields")
+def venture_yields():
+    """Return the best retainer ventures for one world as JSON."""
+    world = request.args.get("world", "")
+    job = request.args.get("job", "")
+    level = request.args.get("level", "").strip()
+    stat = request.args.get("stat", "").strip()
+    if not world.isdigit() or job not in lists.VENTURE_JOBS:
+        return jsonify(None)
+    return jsonify(lists.get_venture_yields(
+        int(world),
+        job,
+        int(level) if level.isdigit() else None,
+        int(stat) if stat.isdigit() else None,
+    ))
+
+
 @routes.get("/suggest")
 def suggest_items():
     """Return item name suggestions for a partial search as JSON."""

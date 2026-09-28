@@ -830,6 +830,58 @@ def test_currency_options_are_sorted_by_name(monkeypatch):
     ]
 
 
+def fake_ventures():
+    return [
+        {"item": 100, "level": 10, "cost": 1, "job": "miner",
+         "quantities": [5, 7, 10, 12, 15], "breakpoints": [20, 29, 32, 35]},
+        {"item": 101, "level": 80, "cost": 2, "job": "miner",
+         "quantities": [1, 2, 3, 4, 5], "breakpoints": [500, 600, 700, 800]},
+        {"item": 102, "level": 50, "cost": 1, "job": "botanist",
+         "quantities": [1, 1, 1, 1, 1], "breakpoints": [0, 0, 0, 0]},
+        {"item": 103, "level": 10, "cost": 1, "job": "miner",
+         "quantities": [5, 7, 10, 12, 15], "breakpoints": [20, 29, 32, 35]},
+    ]
+
+
+VENTURE_STATS = {
+    100: {"price": 100, "avg_price": 95, "min_sale": 90, "max_sale": 110, "week_volume": 200},
+    101: {"price": 4000, "avg_price": 3900, "min_sale": 3800, "max_sale": 4100, "week_volume": 12},
+}
+
+
+def stub_venture_market(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_ventures", fake_ventures)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: {100, 101, 102})
+    monkeypatch.setattr("universalis.fetch_market_stats",
+                        lambda world, ids: {item_id: VENTURE_STATS[item_id] for item_id in ids})
+    monkeypatch.setattr("xivapi.fetch_item_names",
+                        lambda ids: {item_id: f"Item {item_id}" for item_id in ids})
+
+
+def test_venture_yields_rank_by_gil_at_the_stat_tier(monkeypatch):
+    stub_venture_market(monkeypatch)
+    entries = lists.get_venture_yields(66, "miner", None, 30)
+    assert [entry["game_id"] for entry in entries] == [101, 100]
+    assert entries[0]["quantity"] == 1
+    assert entries[0]["yield"] == 2000.0
+    assert entries[1]["quantity"] == 10
+    assert entries[1]["yield"] == 1000.0
+    assert entries[1]["name"] == "Item 100"
+
+
+def test_venture_yields_filter_by_level_and_default_to_best_tier(monkeypatch):
+    stub_venture_market(monkeypatch)
+    entries = lists.get_venture_yields(66, "miner", 20, None)
+    assert [entry["game_id"] for entry in entries] == [100]
+    assert entries[0]["quantity"] == 15
+
+
+def test_venture_yields_fail_without_market_data(monkeypatch):
+    monkeypatch.setattr("xivapi.fetch_ventures", fake_ventures)
+    monkeypatch.setattr("universalis.fetch_marketable_ids", lambda: None)
+    assert lists.get_venture_yields(66, "miner", None, None) is None
+
+
 def test_worlds_are_sorted_by_name(monkeypatch):
     worlds = [{"id": 66, "name": "Odin"}, {"id": 33, "name": "Twintania"}, {"id": 39, "name": "Alpha"}]
     monkeypatch.setattr("universalis.fetch_worlds", lambda: worlds)

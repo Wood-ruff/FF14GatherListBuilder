@@ -19,6 +19,7 @@ COLLECTABLES = {}
 CRAFTABLES = {}
 MATERIAL_SOURCES = {}
 CURRENCY_SHOP = {}
+VENTURES = []
 TOMESTONES = {}
 DOWNLOADED_ICONS = set()
 API_STATUS = {"last_call_failed": False}
@@ -47,6 +48,7 @@ def clear_cache():
     CRAFTABLES.clear()
     MATERIAL_SOURCES.clear()
     CURRENCY_SHOP.clear()
+    VENTURES.clear()
     TOMESTONES.clear()
     DOWNLOADED_ICONS.clear()
     item_cache.clear()
@@ -961,6 +963,108 @@ def keep_cheapest_offer(offers, currency, item_id, cost, amount, gated):
     known = entries.get(str(item_id))
     if known is None or cost / amount < known["cost"] / known["amount"]:
         entries[str(item_id)] = {"cost": cost, "amount": amount, "locked": gated}
+
+
+VENTURE_TASK_FIELDS = (
+    "RetainerLevel,VentureCost,Task@as(raw),ClassJobCategory@as(raw),"
+    "RetainerTaskParameter.ItemLevelDoW,RetainerTaskParameter.PerceptionDoL,"
+    "RetainerTaskParameter.PerceptionFSH"
+)
+
+
+def fetch_ventures():
+    """Return all normal retainer ventures from memory, the cache file, or the api."""
+    if VENTURES:
+        return list(VENTURES)
+    data = item_cache.get_fresh_result("all", "ventures")
+    if data is None:
+        data = lookup_ventures()
+        if data is not None:
+            item_cache.store_result("all", data, "ventures")
+    if data is not None:
+        VENTURES.extend(data)
+    return data
+
+
+def lookup_ventures():
+    """Collect every normal retainer venture with its reward and quantity tiers."""
+    tasks = search_sheet_rows("RetainerTask", "IsRandom=false Task>0", VENTURE_TASK_FIELDS)
+    if tasks is None:
+        return None
+    rewards = sheet_rows("RetainerTaskNormal", "Item@as(raw),Quantity")
+    if rewards is None:
+        return None
+    jobs = venture_job_keys({fields["ClassJobCategory@as(raw)"] for fields in tasks})
+    if jobs is None:
+        return None
+    ventures = []
+    for fields in tasks:
+        venture = build_venture(fields, rewards, jobs)
+        if venture is not None:
+            ventures.append(venture)
+    return ventures
+
+
+def build_venture(fields, rewards, jobs):
+    """Build one venture entry from its task row and reward row."""
+    reward = rewards.get(fields["Task@as(raw)"])
+    if reward is None or reward["Item@as(raw)"] <= 0:
+        return None
+    job = jobs[fields["ClassJobCategory@as(raw)"]]
+    return {
+        "item": reward["Item@as(raw)"],
+        "level": fields["RetainerLevel"],
+        "cost": max(fields["VentureCost"], 1),
+        "job": job,
+        "quantities": reward["Quantity"],
+        "breakpoints": venture_breakpoints(job, fields["RetainerTaskParameter"]["fields"]),
+    }
+
+
+def venture_breakpoints(job, params):
+    """Return the stat thresholds of the venture's quantity tiers for one job."""
+    if job == "battle":
+        return params["ItemLevelDoW"]
+    if job == "fisher":
+        return params["PerceptionFSH"]
+    return params["PerceptionDoL"]
+
+
+def venture_job_keys(category_ids):
+    """Map class job category ids to the retainer job keys they stand for."""
+    keys = {}
+    for category_id in category_ids:
+        data = get_json(f"{SHEET_URL}/ClassJobCategory/{category_id}", {"fields": "MIN,BTN,FSH"})
+        if data is None:
+            return None
+        keys[category_id] = job_key_from_flags(data["fields"])
+    return keys
+
+
+def job_key_from_flags(flags):
+    """Turn one class job category's flags into a retainer job key."""
+    if flags.get("MIN"):
+        return "miner"
+    if flags.get("BTN"):
+        return "botanist"
+    if flags.get("FSH"):
+        return "fisher"
+    return "battle"
+
+
+def search_sheet_rows(sheet, query, fields):
+    """Search one sheet and return all matching rows' fields, paging the results."""
+    params = {"sheets": sheet, "query": query, "limit": 500, "fields": fields}
+    rows = []
+    for _page in range(40):
+        data = get_json(SEARCH_URL, params)
+        if data is None:
+            return None
+        rows.extend(row["fields"] for row in data["results"])
+        if "next" not in data:
+            break
+        params = {"cursor": data["next"], "limit": 500, "fields": fields}
+    return rows
 
 
 def fetch_item_names(game_ids):

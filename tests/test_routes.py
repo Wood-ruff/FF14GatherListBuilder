@@ -471,6 +471,8 @@ def test_quick_buck_shows_currency_and_world_options(client, monkeypatch):
     assert 'id="currency-yields-modal"' in page
     assert 'id="currency-yields-units"' in page
     assert 'id="currency-yields-budget"' in page
+    assert 'id="venture-yields-modal"' in page
+    assert 'id="venture-yields-job"' in page
 
 
 def test_currency_yields_endpoint_returns_entries(client, monkeypatch):
@@ -484,6 +486,19 @@ def test_currency_yields_endpoint_returns_entries(client, monkeypatch):
 def test_currency_yields_endpoint_rejects_bad_params(client):
     assert client.get("/currency-yields?currency=x&world=66").get_json() is None
     assert client.get("/currency-yields?currency=26807").get_json() is None
+
+
+def test_venture_yields_endpoint_returns_entries(client, monkeypatch):
+    entries = [{"game_id": 100, "name": "Thing", "level": 10, "quantity": 15, "price": 500,
+                "avg_price": 480, "min_sale": 450, "max_sale": 520, "yield": 7500.0,
+                "week_volume": 70}]
+    monkeypatch.setattr("lists.get_venture_yields", lambda world, job, level, stat: entries)
+    assert client.get("/venture-yields?world=66&job=miner&level=90&stat=2000").get_json() == entries
+
+
+def test_venture_yields_endpoint_rejects_bad_params(client):
+    assert client.get("/venture-yields?world=66&job=paladin").get_json() is None
+    assert client.get("/venture-yields?world=x&job=miner").get_json() is None
 
 
 def test_quick_buck_tab_is_linked_in_navigation(client):

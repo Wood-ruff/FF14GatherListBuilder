@@ -18,6 +18,7 @@ def isolated_caches(tmp_path, monkeypatch):
     xivapi.CRAFTABLES.clear()
     xivapi.MATERIAL_SOURCES.clear()
     xivapi.CURRENCY_SHOP.clear()
+    xivapi.VENTURES.clear()
     xivapi.TOMESTONES.clear()
     xivapi.API_STATUS["last_call_failed"] = False
     monkeypatch.setattr("settings.get_language", lambda: "en")
@@ -746,6 +747,57 @@ def test_currency_shop_is_cached(monkeypatch):
     monkeypatch.setattr("requests.get", no_more_calls)
     xivapi.CURRENCY_SHOP.clear()
     assert xivapi.fetch_currency_shop()["28"]["305"]["cost"] == 100
+
+
+VENTURE_PARAMS = {"fields": {"ItemLevelDoW": [5, 11, 16, 21],
+                             "PerceptionDoL": [20, 29, 32, 35],
+                             "PerceptionFSH": [0, 0, 0, 0]}}
+
+VENTURE_TASK_ROWS = [
+    {"RetainerLevel": 10, "VentureCost": 1, "Task@as(raw)": 1,
+     "ClassJobCategory@as(raw)": 17, "RetainerTaskParameter": VENTURE_PARAMS},
+    {"RetainerLevel": 5, "VentureCost": 2, "Task@as(raw)": 2,
+     "ClassJobCategory@as(raw)": 34, "RetainerTaskParameter": VENTURE_PARAMS},
+    {"RetainerLevel": 3, "VentureCost": 1, "Task@as(raw)": 99,
+     "ClassJobCategory@as(raw)": 34, "RetainerTaskParameter": VENTURE_PARAMS},
+]
+
+
+def ventures_api(url, params=None, **kwargs):
+    if "/ClassJobCategory/17" in url:
+        return FakeResponse({"fields": {"MIN": True, "BTN": False, "FSH": False}})
+    if "/ClassJobCategory/34" in url:
+        return FakeResponse({"fields": {"MIN": False, "BTN": False, "FSH": False}})
+    if url.endswith("/RetainerTaskNormal"):
+        return FakeResponse({"rows": [
+            {"row_id": 1, "fields": {"Item@as(raw)": 5111, "Quantity": [5, 7, 10, 12, 15]}},
+            {"row_id": 2, "fields": {"Item@as(raw)": 4867, "Quantity": [1, 1, 2, 2, 3]}},
+        ]})
+    return FakeResponse({"results": [
+        {"row_id": index, "fields": fields} for index, fields in enumerate(VENTURE_TASK_ROWS)
+    ]})
+
+
+def test_fetch_ventures_builds_reward_entries(monkeypatch):
+    monkeypatch.setattr("requests.get", ventures_api)
+    assert xivapi.fetch_ventures() == [
+        {"item": 5111, "level": 10, "cost": 1, "job": "miner",
+         "quantities": [5, 7, 10, 12, 15], "breakpoints": [20, 29, 32, 35]},
+        {"item": 4867, "level": 5, "cost": 2, "job": "battle",
+         "quantities": [1, 1, 2, 2, 3], "breakpoints": [5, 11, 16, 21]},
+    ]
+
+
+def test_ventures_are_cached(monkeypatch):
+    monkeypatch.setattr("requests.get", ventures_api)
+    xivapi.fetch_ventures()
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("requests.get", no_more_calls)
+    xivapi.VENTURES.clear()
+    assert xivapi.fetch_ventures()[0]["item"] == 5111
 
 
 def item_names_api(url, params=None, **kwargs):

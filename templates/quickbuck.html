@@ -14,6 +14,13 @@
         </div>
         <button type="button" id="currency-yields-open" class="secondary">{{ t("open") }}</button>
       </div>
+      <div class="feature-entry">
+        <div>
+          <strong>{{ t("venture_yields_title") }}</strong>
+          <div class="muted">{{ t("venture_yields_desc") }}</div>
+        </div>
+        <button type="button" id="venture-yields-open" class="secondary">{{ t("open") }}</button>
+      </div>
     </section>
 
     <div id="currency-yields-modal" class="modal" hidden>
@@ -59,8 +66,51 @@
         <button type="button" id="currency-yields-close" class="secondary">{{ t("modal_close") }}</button>
       </div>
     </div>
+    <div id="venture-yields-modal" class="modal" hidden>
+      <div class="modal-box yields-box">
+        <h3>{{ t("venture_yields_title") }}</h3>
+        <div class="filter-row">
+          <select id="venture-yields-job">
+            <option value="">{{ t("venture_yields_pick_job") }}</option>
+            <option value="battle">{{ t("venture_yields_job_battle") }}</option>
+            <option value="miner">{{ t("venture_yields_job_miner") }}</option>
+            <option value="botanist">{{ t("venture_yields_job_botanist") }}</option>
+            <option value="fisher">{{ t("venture_yields_job_fisher") }}</option>
+          </select>
+          <select id="venture-yields-world">
+            <option value="">{{ t("currency_yields_pick_world") }}</option>
+            {% for world in worlds %}
+            <option value="{{ world.id }}">{{ world.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" id="venture-yields-level" min="1" max="100"
+                 placeholder="{{ t('venture_yields_level') }}" title="{{ t('venture_yields_level_title') }}">
+          <input type="number" id="venture-yields-stat" min="1"
+                 placeholder="{{ t('venture_yields_stat') }}" title="{{ t('venture_yields_stat_title') }}">
+        </div>
+        <p id="venture-yields-status" class="muted" hidden></p>
+        <table id="venture-yields-table" hidden>
+          <thead>
+            <tr>
+              <th>{{ t("currency_yields_col_item") }}</th>
+              <th>{{ t("venture_yields_col_level") }}</th>
+              <th>{{ t("currency_yields_col_amount") }}</th>
+              <th>{{ t("currency_yields_col_price") }}</th>
+              <th>{{ t("currency_yields_col_avg") }}</th>
+              <th>{{ t("currency_yields_col_min_sale") }}</th>
+              <th>{{ t("currency_yields_col_max_sale") }}</th>
+              <th>{{ t("venture_yields_col_yield") }}</th>
+              <th>{{ t("currency_yields_col_volume") }}</th>
+            </tr>
+          </thead>
+          <tbody id="venture-yields-body"></tbody>
+        </table>
+        <button type="button" id="venture-yields-close" class="secondary">{{ t("modal_close") }}</button>
+      </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
   <script src="{{ url_for('static', filename='currency-yields.js') }}"></script>
+  <script src="{{ url_for('static', filename='venture-yields.js') }}"></script>
 {% endblock %}
