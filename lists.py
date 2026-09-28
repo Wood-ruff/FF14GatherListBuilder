@@ -1075,6 +1075,58 @@ def get_worlds():
     return sorted(worlds, key=lambda world: world["name"])
 
 
+STACK_LISTING_CAP = 99
+
+
+def get_list_prices(list_name, world_id, item_ids):
+    """Return the lowest and covering-stack market prices of a list's items."""
+    list_name = normalize_spaces(list_name)
+    if not is_valid_list_name(list_name):
+        return None
+    needed = needed_market_amounts(storage.load_items(list_name), item_ids)
+    if not needed:
+        return {}
+    ids = sorted(needed)
+    stack_sizes = xivapi.fetch_stack_sizes(ids)
+    listings = universalis.fetch_market_listings(world_id, ids)
+    if listings is None:
+        return None
+    prices = {}
+    for game_id in ids:
+        threshold = stack_threshold(needed[game_id], stack_sizes.get(game_id, 1))
+        entry = listing_prices(listings.get(game_id), threshold)
+        if entry is not None:
+            prices[game_id] = entry
+    return prices
+
+
+def needed_market_amounts(items, item_ids):
+    """Sum the needed amount per marketable game id, optionally limited to given ids."""
+    needed = {}
+    for item in items:
+        game_id = item.get("game_id")
+        if not game_id or not item.get("marketable"):
+            continue
+        if item_ids and game_id not in item_ids:
+            continue
+        needed[game_id] = needed.get(game_id, 0) + int(item.get("amount") or 1)
+    return needed
+
+
+def stack_threshold(amount, stack_size):
+    """Return the listing quantity that covers the need within the game's limits."""
+    return max(1, min(amount, stack_size, STACK_LISTING_CAP))
+
+
+def listing_prices(listings, threshold):
+    """Pick the lowest unit price and the lowest among listings covering the threshold."""
+    if not listings:
+        return None
+    lowest = min(price for price, _quantity in listings)
+    covering = [price for price, quantity in listings if quantity >= threshold]
+    return {"lowest": lowest, "stack": min(covering, default=None), "needed": threshold}
+
+
 def get_currency_yields(currency_id, world_id):
     """Rank what one currency buys by gil yield per unit on one world's market."""
     shop = xivapi.fetch_currency_shop() or {}

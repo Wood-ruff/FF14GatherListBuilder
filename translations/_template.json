@@ -715,6 +715,18 @@
     "english": "Show suggestions",
     "translation": ""
   },
+  "suggest_quick_add_title": {
+    "english": "Add this amount to the list",
+    "translation": ""
+  },
+  "list_prices_world_title": {
+    "english": "World for market prices",
+    "translation": ""
+  },
+  "listing_price_title": {
+    "english": "Cheapest listing / cheapest listing covering the needed amount",
+    "translation": ""
+  },
   "toast_copied": {
     "english": "Item copied to clipboard — paste in chat and press Tab for a link",
     "translation": ""

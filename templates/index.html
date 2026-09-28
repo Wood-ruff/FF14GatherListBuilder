@@ -79,7 +79,14 @@
             <th class="num">{{ t("header_amount") }}</th>
             <th class="num">{{ t("header_node_materials") }}</th>
             <th class="num">{{ t("header_game_id") }}</th>
-            <th class="trail"></th>
+            <th class="trail">
+              <select id="list-prices-world" data-list="{{ selected }}" title="{{ t('list_prices_world_title') }}">
+                <option value="">{{ t("currency_yields_pick_world") }}</option>
+                {% for world in worlds %}
+                <option value="{{ world.id }}">{{ world.name }}</option>
+                {% endfor %}
+              </select>
+            </th>
             <th class="trail">{{ t("header_note") }}</th>
             <th></th>
           </tr>
@@ -134,6 +141,8 @@
             </td>
             <td class="trail">
               {% if item.marketable %}
+              <span class="listing-price" data-game-id="{{ item.game_id }}"
+                    title="{{ t('listing_price_title') }}"></span>
               <a class="market-link" href="https://universalis.app/market/{{ item.game_id }}" target="_blank"
                  rel="noopener" title="{{ t('market_tooltip') }}"><img class="market-icon" src="/market-icon" alt="MB"></a>
               {% endif %}
@@ -199,4 +208,5 @@
 <script src="{{ url_for('static', filename='done.js') }}"></script>
 <script src="{{ url_for('static', filename='notes.js') }}"></script>
 <script src="{{ url_for('static', filename='sources.js') }}"></script>
+<script src="{{ url_for('static', filename='list-prices.js') }}"></script>
 {% endblock %}

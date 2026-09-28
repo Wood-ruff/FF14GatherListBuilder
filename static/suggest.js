@@ -1,7 +1,9 @@
-const SUGGEST_DELAY_MS = 2000;
+const SUGGEST_DELAY_MS = 1000;
 const SUGGEST_MIN_LENGTH = 3;
+const QUICK_ADD_AMOUNTS = [1, 2, 5, 10];
 
 function setupSuggestBox(box) {
+  const form = box.closest("form");
   const input = box.querySelector("input");
   const toggle = box.querySelector(".suggest-toggle");
   const list = box.querySelector(".suggest-list");
@@ -48,12 +50,37 @@ function setupSuggestBox(box) {
 
   function buildOption(name) {
     const option = document.createElement("div");
-    option.textContent = name;
+    const label = document.createElement("span");
+    label.textContent = name;
+    option.appendChild(label);
+    for (const amount of QUICK_ADD_AMOUNTS) {
+      option.appendChild(buildQuickAddButton(name, amount));
+    }
     option.addEventListener("click", function () {
       input.value = name;
       list.hidden = true;
     });
     return option;
+  }
+
+  function buildQuickAddButton(name, amount) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggest-quick-add";
+    button.textContent = "+" + amount;
+    button.title = msg("suggest_quick_add_title", "Add this amount to the list");
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      quickAdd(name, amount);
+    });
+    return button;
+  }
+
+  function quickAdd(name, amount) {
+    input.value = name;
+    form.querySelector('input[name="amount"]').value = amount;
+    list.hidden = true;
+    form.requestSubmit();
   }
 }
 

@@ -593,26 +593,60 @@ def warm_icons(game_ids):
         list(pool.map(ensure_icon, items))
 
 
+ITEM_DETAIL_FIELDS = "PriceMid,StackSize,ItemSearchCategory@as(raw)"
+
+
 def warm_item_details(game_ids):
     """Batch fetch and cache missing price and market details for the game ids."""
     with item_cache.fetch_lock("item_details_warmup"):
-        missing = [game_id for game_id in dict.fromkeys(game_ids)
-                   if item_cache.get_fresh_result(str(game_id), "item_details") is None]
+        missing = missing_item_details(game_ids)
         if not missing:
             return
-        fields = "PriceMid,ItemSearchCategory@as(raw)"
         rows = item_cache.counted_fetch(
-            lambda: batch_item_rows(missing, fields, settings.get_language())
+            lambda: batch_item_rows(missing, ITEM_DETAIL_FIELDS, settings.get_language())
         )
         if rows is None:
             return
-        stored = {}
-        for row in rows:
-            stored[str(row["row_id"])] = {
-                "price": row["fields"]["PriceMid"],
-                "marketable": row["fields"]["ItemSearchCategory@as(raw)"] > 0,
-            }
-        item_cache.store_results(stored, "item_details")
+        store_item_detail_rows(rows)
+
+
+def fetch_stack_sizes(game_ids):
+    """Return each item's stack size, quietly batch fetching details that lack it."""
+    with item_cache.fetch_lock("item_details_warmup"):
+        missing = missing_item_details(game_ids)
+        if missing:
+            rows = batch_item_rows(missing, ITEM_DETAIL_FIELDS, settings.get_language())
+            if rows is not None:
+                store_item_detail_rows(rows)
+    details = item_cache.get_fresh_results([str(game_id) for game_id in game_ids], "item_details")
+    return {game_id: details.get(str(game_id), {}).get("stack_size", 1) for game_id in game_ids}
+
+
+def missing_item_details(game_ids):
+    """List the game ids whose cached details are absent or lack the stack size."""
+    missing = []
+    for game_id in dict.fromkeys(game_ids):
+        cached = item_cache.get_fresh_result(str(game_id), "item_details")
+        if cached is None or "stack_size" not in cached:
+            missing.append(game_id)
+    return missing
+
+
+def store_item_detail_rows(rows):
+    """Cache the details of the fetched item rows in one write."""
+    stored = {}
+    for row in rows:
+        stored[str(row["row_id"])] = item_detail_entry(row["fields"])
+    item_cache.store_results(stored, "item_details")
+
+
+def item_detail_entry(fields):
+    """Build one cached details entry from an item row's fields."""
+    return {
+        "price": fields["PriceMid"],
+        "stack_size": fields["StackSize"],
+        "marketable": fields["ItemSearchCategory@as(raw)"] > 0,
+    }
 
 
 def batch_item_rows(game_ids, fields, language):
@@ -1676,19 +1710,15 @@ def ensure_market_icon():
 
 
 def fetch_item_details(game_id):
-    """Return an item's gil price and market availability, cached."""
+    """Return an item's gil price, stack size and market availability, cached."""
     with item_cache.fetch_lock(f"item_details:{game_id}"):
         cached = item_cache.get_fresh_result(str(game_id), "item_details")
-        if cached is not None:
+        if cached is not None and "stack_size" in cached:
             return cached
-        data = get_json(f"{SHEET_URL}/Item/{game_id}",
-                        {"fields": "PriceMid,ItemSearchCategory@as(raw)"})
+        data = get_json(f"{SHEET_URL}/Item/{game_id}", {"fields": ITEM_DETAIL_FIELDS})
         if data is None:
             return None
-        details = {
-            "price": data["fields"]["PriceMid"],
-            "marketable": data["fields"]["ItemSearchCategory@as(raw)"] > 0,
-        }
+        details = item_detail_entry(data["fields"])
         item_cache.store_result(str(game_id), details, "item_details")
         return details
 

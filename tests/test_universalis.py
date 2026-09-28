@@ -206,6 +206,73 @@ def test_market_stats_parallel_chunks_collect_all_results(monkeypatch):
     assert stats[101]["price"] == 0
 
 
+LISTING_DATA = {
+    "items": {
+        "100": {"listings": [{"pricePerUnit": 120, "quantity": 3},
+                             {"pricePerUnit": 100, "quantity": 1},
+                             {"pricePerUnit": 150, "quantity": 99}]},
+        "101": {"listings": []},
+    },
+}
+
+
+def listings_api(url, params=None, **kwargs):
+    return FakeResponse(LISTING_DATA)
+
+
+def test_market_listings_reduce_to_sorted_price_quantity_pairs(monkeypatch):
+    seen = {}
+
+    def capture(url, params=None, **kwargs):
+        seen.update(params)
+        return listings_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", capture)
+    listings = universalis.fetch_market_listings(66, [100, 101, 102])
+    assert seen == {"listings": universalis.LISTING_LIMIT, "entries": 0}
+    assert listings[100] == [[100, 1], [120, 3], [150, 99]]
+    assert listings[101] == []
+    assert listings[102] == []
+
+
+def test_market_listings_come_from_cache_within_ttl(monkeypatch):
+    monkeypatch.setattr("requests.get", listings_api)
+    universalis.fetch_market_listings(66, [100])
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert universalis.fetch_market_listings(66, [100])[100][0] == [100, 1]
+
+
+def test_stale_market_listings_are_fetched_again(monkeypatch):
+    monkeypatch.setattr("requests.get", listings_api)
+    universalis.fetch_market_listings(66, [100])
+    cache = item_cache.load_cache()
+    too_old = datetime.now() - timedelta(hours=universalis.MARKET_TTL_HOURS + 1)
+    cache["market_listings:66:100"]["fetchdate"] = too_old.isoformat()
+    item_cache.CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
+    monkeypatch.setattr("requests.get", listings_api)
+    assert universalis.fetch_market_listings(66, [100])[100] == [[100, 1], [120, 3], [150, 99]]
+
+
+def test_single_item_listings_response_shape(monkeypatch):
+    single = {"itemID": 100, "listings": [{"pricePerUnit": 250, "quantity": 20}]}
+    monkeypatch.setattr("requests.get", lambda url, params=None, **kwargs: FakeResponse(single))
+    assert universalis.fetch_market_listings(66, [100])[100] == [[250, 20]]
+
+
+def test_market_listings_retry_a_failed_chunk_once(monkeypatch):
+    attempts = {"count": 0}
+
+    def flaky(url, params=None, **kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise requests.RequestException("504")
+        return listings_api(url, params, **kwargs)
+
+    monkeypatch.setattr("requests.get", flaky)
+    assert universalis.fetch_market_listings(66, [100])[100][0] == [100, 1]
+    assert attempts["count"] == 2
+
+
 def test_failed_lookups_return_none(monkeypatch):
     def down(url, params=None, **kwargs):
         raise requests.RequestException("down")
@@ -215,3 +282,4 @@ def test_failed_lookups_return_none(monkeypatch):
     assert universalis.fetch_marketable_ids() is None
     assert universalis.fetch_market_stats(66, [100]) is None
     assert universalis.fetch_market_overview(66, [100]) is None
+    assert universalis.fetch_market_listings(66, [100]) is None

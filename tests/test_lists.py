@@ -1,6 +1,7 @@
 import pytest
 
 import lists
+import storage
 
 FAKE_ITEMS = {
     "iron ore": {"row_id": 5111, "fields": {"Name": "Iron Ore"}},
@@ -1161,3 +1162,57 @@ def test_remove_item(tmp_path, monkeypatch):
     items = lists.get_items("Ores")
     assert len(items) == 1
     assert items[0]["name"] == "Copper Ore"
+
+
+def priced_list(tmp_path, monkeypatch, amount, stack_size, listings):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    storage.save_items("Demo", [
+        {"id": 1, "name": "Iron Ore", "amount": amount, "game_id": 5111, "marketable": True},
+        {"id": 2, "name": "Mystery Rock", "amount": 3, "game_id": None, "marketable": None},
+        {"id": 3, "name": "Crested Headband", "amount": 1, "game_id": 47184, "marketable": False},
+    ])
+    monkeypatch.setattr("xivapi.fetch_stack_sizes", lambda ids: {5111: stack_size})
+    monkeypatch.setattr("universalis.fetch_market_listings", lambda world, ids: {5111: listings})
+
+
+def test_list_prices_pick_lowest_and_covering_listing(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 999, [[80, 5], [90, 99], [100, 1]])
+    assert lists.get_list_prices("Demo", 66, []) == {
+        5111: {"lowest": 80, "stack": 90, "needed": 40},
+    }
+
+
+def test_list_prices_cap_the_need_at_the_listing_limit(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 500, 999, [[80, 5], [90, 99]])
+    assert lists.get_list_prices("Demo", 66, [])[5111]["needed"] == 99
+
+
+def test_list_prices_cap_the_need_at_the_stack_size(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 12, [[80, 5], [90, 12], [100, 99]])
+    assert lists.get_list_prices("Demo", 66, [])[5111] == {"lowest": 80, "stack": 90, "needed": 12}
+
+
+def test_list_prices_without_covering_listing_have_no_stack_price(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 999, [[80, 5], [90, 20]])
+    assert lists.get_list_prices("Demo", 66, [])[5111] == {"lowest": 80, "stack": None, "needed": 40}
+
+
+def test_list_prices_only_cover_requested_ids(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 999, [[80, 99]])
+    assert lists.get_list_prices("Demo", 66, [4711]) == {}
+
+
+def test_list_prices_skip_items_without_listings(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 999, [])
+    assert lists.get_list_prices("Demo", 66, []) == {}
+
+
+def test_list_prices_fail_when_the_market_lookup_fails(tmp_path, monkeypatch):
+    priced_list(tmp_path, monkeypatch, 40, 999, [[80, 99]])
+    monkeypatch.setattr("universalis.fetch_market_listings", lambda world, ids: None)
+    assert lists.get_list_prices("Demo", 66, []) is None
+
+
+def test_list_prices_reject_invalid_list_names(tmp_path, monkeypatch):
+    monkeypatch.setattr("storage.DATA_DIR", tmp_path)
+    assert lists.get_list_prices("../evil", 66, []) is None

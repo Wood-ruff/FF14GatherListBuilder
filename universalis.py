@@ -13,6 +13,7 @@ CHUNK_SIZE = 25
 OVERVIEW_CHUNK_SIZE = 100
 CHUNK_WORKERS = 3
 MARKET_TTL_HOURS = 3
+LISTING_LIMIT = 50
 HISTORY_WINDOW_SECONDS = 7 * 24 * 3600
 MAX_HISTORY_ENTRIES = 100
 STAT_KEYS = ("price", "avg_price", "min_sale", "max_sale", "week_volume")
@@ -87,6 +88,67 @@ def fetch_market_overview(world_id, item_ids):
             return None
         overview.update(fetched)
         return overview
+
+
+def fetch_market_listings(world_id, item_ids):
+    """Return the cheapest current listings per item id, cached for a few hours."""
+    with item_cache.fetch_lock(f"market_listings:{world_id}"):
+        cached = item_cache.get_fresh_results(
+            [stats_key(world_id, item_id) for item_id in item_ids], "market_listings", MARKET_TTL_HOURS
+        )
+        listings = {}
+        missing = []
+        for item_id in item_ids:
+            known = cached.get(stats_key(world_id, item_id))
+            if known is None:
+                missing.append(item_id)
+            else:
+                listings[item_id] = known
+        fetched = fetch_chunks(missing, CHUNK_SIZE,
+                               lambda chunk: lookup_market_listings_with_retry(world_id, chunk))
+        if fetched is None:
+            return None
+        listings.update(fetched)
+        return listings
+
+
+def lookup_market_listings_with_retry(world_id, item_ids):
+    """Fetch one chunk of market listings, trying a second time when the api hiccups."""
+    fetched = lookup_market_listings(world_id, item_ids)
+    if fetched is None:
+        fetched = lookup_market_listings(world_id, item_ids)
+    return fetched
+
+
+def lookup_market_listings(world_id, item_ids):
+    """Fetch the cheapest listings of up to one chunk of items in one call."""
+    joined = ",".join(str(item_id) for item_id in item_ids)
+    data = get_json(f"{MARKET_URL}/{world_id}/{joined}", {
+        "listings": LISTING_LIMIT,
+        "entries": 0,
+    })
+    if data is None:
+        return None
+    rows = data.get("items")
+    if rows is None:
+        rows = {str(data.get("itemID")): data}
+    listings = {}
+    for item_id in item_ids:
+        listings[item_id] = build_listings(rows.get(str(item_id)))
+    item_cache.store_results(
+        {stats_key(world_id, item_id): entry for item_id, entry in listings.items()}, "market_listings"
+    )
+    return listings
+
+
+def build_listings(fields):
+    """Reduce one market data row to its price and quantity pairs, cheapest first."""
+    if fields is None:
+        return []
+    pairs = [[listing["pricePerUnit"], listing["quantity"]]
+             for listing in fields.get("listings", [])]
+    pairs.sort()
+    return pairs
 
 
 def fetch_chunks(item_ids, size, lookup_chunk):

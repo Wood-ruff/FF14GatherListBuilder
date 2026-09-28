@@ -113,6 +113,7 @@ def show_list():
         items=items,
         q=name_filter,
         timed_first=timed_first,
+        worlds=lists.get_worlds(),
         **page_context(selected, "lists"),
     )
 
@@ -337,6 +338,17 @@ def gathering_yields():
         request.args.get("quick", "") == "1",
         request.args.get("highvolume", "") == "1",
     ))
+
+
+@routes.get("/list-prices")
+def list_prices():
+    """Return the market prices of a list's marketable items as JSON."""
+    list_name = request.args.get("list", "").strip()
+    world = request.args.get("world", "")
+    if not list_name or not world.isdigit():
+        return jsonify(None)
+    ids = [int(part) for part in request.args.get("ids", "").split(",") if part.isdigit()]
+    return jsonify(lists.get_list_prices(list_name, int(world), ids))
 
 
 @routes.get("/suggest")

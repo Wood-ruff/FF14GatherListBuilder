@@ -772,3 +772,17 @@ def test_delete_rejects_bad_id(client):
     client.post("/delete", data={"list": "Demo", "id": "abc"})
     page = client.get("/?list=Demo").get_data(as_text=True)
     assert "Iron Ore" in page
+
+
+def test_list_prices_reject_bad_params(client):
+    assert client.get("/list-prices?list=&world=66").get_json() is None
+    assert client.get("/list-prices?list=Demo&world=abc").get_json() is None
+
+
+def test_list_prices_return_the_service_result(client, monkeypatch):
+    monkeypatch.setattr(
+        "lists.get_list_prices",
+        lambda name, world, ids: {"args": [name, world, ids]},
+    )
+    data = client.get("/list-prices?list=Demo&world=66&ids=5111,16,x").get_json()
+    assert data == {"args": ["Demo", 66, [5111, 16]]}

@@ -378,8 +378,21 @@ form {
 }
 
 .suggest-list div {
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
   cursor: pointer;
+}
+
+.suggest-list div span {
+  flex: 1;
+}
+
+.suggest-quick-add {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  border-radius: 6px;
 }
 
 .suggest-list div:hover {
@@ -914,6 +927,17 @@ tr.done .copy-name {
   width: 24px;
   height: 24px;
   vertical-align: middle;
+}
+
+.listing-price {
+  margin-right: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#list-prices-world {
+  max-width: 160px;
+  font-weight: normal;
 }
 
 .source-row {

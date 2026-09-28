@@ -943,6 +943,7 @@ def item_rows_api(url, params=None, **kwargs):
     ids = [int(game_id) for game_id in params["rows"].split(",")]
     return FakeResponse({"rows": [
         {"row_id": game_id, "fields": {"Name": f"Item {game_id}", "PriceMid": game_id * 2,
+                                       "StackSize": 999 if game_id != 16 else 12,
                                        "ItemSearchCategory@as(raw)": 40 if game_id != 16 else 0}}
         for game_id in ids
     ]})
@@ -1019,8 +1020,29 @@ def test_warm_item_details_batches_prices(monkeypatch):
         raise AssertionError("expected no api call")
 
     monkeypatch.setattr("requests.get", no_more_calls)
-    assert xivapi.fetch_item_details(5111) == {"price": 10222, "marketable": True}
-    assert xivapi.fetch_item_details(16) == {"price": 32, "marketable": False}
+    assert xivapi.fetch_item_details(5111) == {"price": 10222, "stack_size": 999, "marketable": True}
+    assert xivapi.fetch_item_details(16) == {"price": 32, "stack_size": 12, "marketable": False}
+
+
+def test_old_shape_item_details_are_refetched(monkeypatch):
+    item_cache.store_result("5111", {"price": 1, "marketable": True}, "item_details")
+    monkeypatch.setattr("requests.get", item_rows_api)
+    xivapi.warm_item_details([5111])
+    assert xivapi.fetch_item_details(5111)["stack_size"] == 999
+
+
+def test_fetch_stack_sizes_batches_without_counting(monkeypatch):
+    def no_counting(lookup):
+        raise AssertionError("expected an uncounted fetch")
+
+    def no_more_calls(*args, **kwargs):
+        raise AssertionError("expected no api call")
+
+    monkeypatch.setattr("item_cache.counted_fetch", no_counting)
+    monkeypatch.setattr("requests.get", item_rows_api)
+    assert xivapi.fetch_stack_sizes([5111, 16]) == {5111: 999, 16: 12}
+    monkeypatch.setattr("requests.get", no_more_calls)
+    assert xivapi.fetch_stack_sizes([5111, 16]) == {5111: 999, 16: 12}
 
 
 def test_warm_gathering_marks_non_node_items(monkeypatch):
@@ -1130,7 +1152,8 @@ def vendor_api(url, params=None, **kwargs):
             "Map": {"fields": {"SizeFactor": 100, "OffsetX": 0, "OffsetY": 0}},
         }})
     if "/Item/" in url:
-        return FakeResponse({"fields": {"PriceMid": 108, "ItemSearchCategory@as(raw)": 53}})
+        return FakeResponse({"fields": {"PriceMid": 108, "StackSize": 999,
+                                        "ItemSearchCategory@as(raw)": 53}})
     sheet = params["sheets"]
     if sheet == "GilShopItem":
         return FakeResponse({"results": [{"row_id": 262144, "subrow_id": 0, "fields": {}}]})
@@ -1169,7 +1192,7 @@ def test_fetch_item_offers_resolve_price_and_vendor(monkeypatch):
 
 def test_item_details_are_cached(monkeypatch):
     monkeypatch.setattr("requests.get", vendor_api)
-    assert xivapi.fetch_item_details(46243) == {"price": 108, "marketable": True}
+    assert xivapi.fetch_item_details(46243) == {"price": 108, "stack_size": 999, "marketable": True}
 
     def no_more_calls(*args, **kwargs):
         raise AssertionError("expected no api call")
